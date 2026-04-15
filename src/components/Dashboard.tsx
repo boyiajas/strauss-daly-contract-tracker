@@ -74,16 +74,22 @@ export function Dashboard() {
   useEffect(() => {
     let isActive = true;
     setIsLoading(true);
-    Promise.all([fetchContracts(), fetchAuditLogs()])
-      .then(([contractData, auditData]) => {
+    Promise.allSettled([fetchContracts(), fetchAuditLogs()])
+      .then(([contractsResult, auditResult]) => {
         if (!isActive) return;
-        setContracts(contractData);
-        setAuditLogs(auditData);
-        setLoadError(null);
-      })
-      .catch(() => {
-        if (!isActive) return;
-        setLoadError('Unable to load dashboard data.');
+
+        const contractsLoaded = contractsResult.status === 'fulfilled';
+        const auditLoaded = auditResult.status === 'fulfilled';
+
+        if (contractsLoaded) {
+          setContracts(contractsResult.value);
+        }
+
+        if (auditLoaded) {
+          setAuditLogs(auditResult.value);
+        }
+
+        setLoadError(contractsLoaded || auditLoaded ? null : 'Unable to load dashboard data.');
       })
       .finally(() => {
         if (!isActive) return;
