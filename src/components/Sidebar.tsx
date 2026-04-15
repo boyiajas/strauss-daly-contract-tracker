@@ -3,6 +3,7 @@ import {
   LayoutDashboard, 
   FileText, 
   Users, 
+  Building2,
   Settings, 
   Bell, 
   LogOut,
@@ -17,6 +18,7 @@ const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: FileText, label: 'Contracts', path: '/contracts' },
   { icon: Users, label: 'User Management', path: '/users' },
+  { icon: Building2, label: 'Departments', path: '/departments' },
   { icon: Bell, label: 'Notifications', path: '/notifications' },
   { icon: ClipboardList, label: 'Audit Log', path: '/audit-log' },
   { icon: Settings, label: 'System Settings', path: '/settings' },
@@ -32,7 +34,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onClose, onLogout, userRole }: SidebarProps) {
   // Filter navigation items based on role if necessary
   const filteredNavItems = navItems.filter(item => {
-    if (userRole === 'Viewer' && (item.path === '/users' || item.path === '/settings')) {
+    if (userRole === 'Viewer' && (item.path === '/users' || item.path === '/departments' || item.path === '/settings')) {
       return false;
     }
     return true;

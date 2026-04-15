@@ -4,6 +4,11 @@ type ContractApi = {
   id: number;
   title: string;
   party_name: string;
+  department_id?: number | null;
+  department?: {
+    id: number;
+    name: string;
+  } | null;
   start_date: string;
   end_date: string;
   value: string | number;
@@ -30,6 +35,8 @@ export const mapContractFromApi = (contract: ContractApi): Contract => ({
   id: String(contract.id),
   title: contract.title,
   partyName: contract.party_name,
+  departmentId: contract.department_id ? String(contract.department_id) : undefined,
+  departmentName: contract.department?.name ?? undefined,
   startDate: contract.start_date,
   endDate: contract.end_date,
   value: toNumber(contract.value),
@@ -47,6 +54,7 @@ export const mapContractFromApi = (contract: ContractApi): Contract => ({
 export const mapContractToApi = (contract: Partial<Contract>) => ({
   title: contract.title ?? '',
   party_name: contract.partyName ?? '',
+  department_id: contract.departmentId ? Number(contract.departmentId) : null,
   start_date: contract.startDate ?? '',
   end_date: contract.endDate ?? '',
   value: contract.value ?? 0,

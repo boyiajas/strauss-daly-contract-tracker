@@ -4,6 +4,8 @@ export interface Contract {
   id: string;
   title: string;
   partyName: string;
+  departmentId?: string;
+  departmentName?: string;
   startDate: string;
   endDate: string;
   value: number;
@@ -27,6 +29,11 @@ export interface User {
   role: UserRole;
   department: string;
   status: 'Active' | 'Inactive';
+}
+
+export interface Department {
+  id: string;
+  name: string;
 }
 
 export type NotificationChannel = 'Email' | 'SMS' | 'WhatsApp';

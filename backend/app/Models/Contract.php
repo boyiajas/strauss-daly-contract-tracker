@@ -9,6 +9,7 @@ class Contract extends Model
     protected $fillable = [
         'title',
         'party_name',
+        'department_id',
         'start_date',
         'end_date',
         'value',
@@ -29,4 +30,9 @@ class Contract extends Model
         'tags' => 'array',
         'notification_days' => 'array',
     ];
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
+    }
 }

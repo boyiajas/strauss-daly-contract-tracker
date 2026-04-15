@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\ContractController;
+use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\NotificationLogController;
 use App\Http\Controllers\NotificationSettingController;
 use App\Http\Controllers\SystemSettingController;
@@ -21,6 +22,10 @@ Route::post('/contracts', [ContractController::class, 'store']);
 Route::get('/contracts/{contract}', [ContractController::class, 'show']);
 Route::patch('/contracts/{contract}', [ContractController::class, 'update']);
 Route::delete('/contracts/{contract}', [ContractController::class, 'destroy']);
+
+Route::get('/departments', [DepartmentController::class, 'index']);
+Route::post('/departments', [DepartmentController::class, 'store']);
+Route::patch('/departments/{department}', [DepartmentController::class, 'update']);
 
 Route::get('/users', [UserController::class, 'index']);
 Route::post('/users', [UserController::class, 'store']);

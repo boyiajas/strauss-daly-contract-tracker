@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
+  Building2,
   FileText, 
   Upload, 
   Bell, 
@@ -10,9 +11,10 @@ import {
   CheckCircle2,
   RefreshCw
 } from 'lucide-react';
-import { Contract } from '../types';
+import { Contract, Department } from '../types';
 import { useToast } from '../App';
 import { createContract, fetchContract, updateContract } from '../lib/contracts';
+import { fetchDepartments } from '../lib/departments';
 
 export function NewContract() {
   const navigate = useNavigate();
@@ -22,10 +24,13 @@ export function NewContract() {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [departmentLoadError, setDepartmentLoadError] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [tagsInput, setTagsInput] = useState('');
   const [newContract, setNewContract] = useState<Partial<Contract>>({
     title: '',
     partyName: '',
+    departmentId: '',
     startDate: '',
     endDate: '',
     value: 0,
@@ -35,6 +40,24 @@ export function NewContract() {
     tags: [],
     notificationDays: [90, 60, 30],
   });
+
+  useEffect(() => {
+    let isActive = true;
+    fetchDepartments()
+      .then((data) => {
+        if (!isActive) return;
+        setDepartments(data);
+        setDepartmentLoadError(null);
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setDepartmentLoadError('Unable to load departments.');
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isEditing || !contractId) return;
@@ -67,6 +90,25 @@ export function NewContract() {
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
     e?.preventDefault();
     if (isSaving) return;
+
+    const hasRequiredFields = Boolean(
+      newContract.title?.trim() &&
+      newContract.partyName?.trim() &&
+      newContract.departmentId &&
+      newContract.startDate &&
+      newContract.endDate &&
+      newContract.category &&
+      newContract.status &&
+      newContract.value !== undefined &&
+      newContract.value !== null &&
+      String(newContract.value) !== ''
+    );
+
+    if (!hasRequiredFields) {
+      showToast('Complete all required contract fields before saving.', 'error');
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -129,6 +171,11 @@ export function NewContract() {
           {loadError}
         </div>
       )}
+      {departmentLoadError && (
+        <div className="bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-xl">
+          {departmentLoadError}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 xl:grid-cols-3 gap-8 pb-12">
         <div className="xl:col-span-2 space-y-8">
@@ -169,8 +216,30 @@ export function NewContract() {
               </div>
 
               <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Department</label>
+                <div className="relative">
+                  <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                  <select
+                    required
+                    className="w-full appearance-none pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    value={newContract.departmentId ?? ''}
+                    onChange={e => setNewContract({ ...newContract, departmentId: e.target.value })}
+                    disabled={isLoading || departments.length === 0}
+                  >
+                    <option value="">Select department</option>
+                    {departments.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {department.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Status</label>
                 <select 
+                  required
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                   value={newContract.status}
                   onChange={e => setNewContract({...newContract, status: e.target.value as any})}
@@ -198,6 +267,7 @@ export function NewContract() {
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Category</label>
                 <select 
+                  required
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                   value={newContract.category}
                   onChange={e => setNewContract({...newContract, category: e.target.value as any})}

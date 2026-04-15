@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Contract;
+use App\Models\Department;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 
@@ -17,6 +18,7 @@ class ContractSeeder extends Seeder
             [
                 'title' => 'Enterprise Software Agreement',
                 'party_name' => 'Acme Technologies',
+                'department' => 'Corporate Services',
                 'start_date' => Carbon::today()->subMonths(2)->toDateString(),
                 'end_date' => Carbon::today()->addDays(90)->toDateString(),
                 'value' => 250000,
@@ -32,6 +34,7 @@ class ContractSeeder extends Seeder
             [
                 'title' => 'Facilities Lease Renewal',
                 'party_name' => 'Rosebank Property Group',
+                'department' => 'Conveyancing',
                 'start_date' => Carbon::today()->subMonths(10)->toDateString(),
                 'end_date' => Carbon::today()->addDays(30)->toDateString(),
                 'value' => 120000,
@@ -47,6 +50,7 @@ class ContractSeeder extends Seeder
             [
                 'title' => 'Recruitment Services SLA',
                 'party_name' => 'Talent Bridge',
+                'department' => 'Finance',
                 'start_date' => Carbon::today()->subMonths(1)->toDateString(),
                 'end_date' => Carbon::today()->addMonths(6)->toDateString(),
                 'value' => 80000,
@@ -62,6 +66,13 @@ class ContractSeeder extends Seeder
         ];
 
         foreach ($contracts as $contract) {
+            $department = Department::query()
+                ->where('name', $contract['department'])
+                ->first();
+
+            unset($contract['department']);
+            $contract['department_id'] = $department?->id;
+
             Contract::updateOrCreate(
                 [
                     'title' => $contract['title'],

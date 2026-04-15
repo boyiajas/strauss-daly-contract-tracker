@@ -14,6 +14,7 @@ class ContractController extends Controller
     public function index()
     {
         $contracts = Contract::query()
+            ->with('department')
             ->orderByDesc('created_at')
             ->get();
 
@@ -36,11 +37,12 @@ class ContractController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'party_name' => ['required', 'string', 'max:255'],
+            'department_id' => ['required', 'integer', 'exists:departments,id'],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date'],
-            'value' => ['nullable', 'numeric', 'min:0'],
-            'status' => ['nullable', 'string', 'max:50'],
-            'category' => ['nullable', 'string', 'max:50'],
+            'value' => ['required', 'numeric', 'min:0'],
+            'status' => ['required', 'string', 'max:50'],
+            'category' => ['required', 'string', 'max:50'],
             'description' => ['nullable', 'string'],
             'tags' => ['nullable', 'array'],
             'tags.*' => ['string', 'max:100'],
@@ -52,6 +54,7 @@ class ContractController extends Controller
         ]);
 
         $contract = Contract::create($data);
+        $contract->load('department');
 
         AuditLog::record([
             'user' => $request->user()?->name ?? 'System',
@@ -69,7 +72,7 @@ class ContractController extends Controller
      */
     public function show(Contract $contract)
     {
-        return response()->json($contract);
+        return response()->json($contract->load('department'));
     }
 
     /**
@@ -88,11 +91,12 @@ class ContractController extends Controller
         $data = $request->validate([
             'title' => ['sometimes', 'string', 'max:255'],
             'party_name' => ['sometimes', 'string', 'max:255'],
+            'department_id' => ['sometimes', 'required', 'integer', 'exists:departments,id'],
             'start_date' => ['sometimes', 'date'],
             'end_date' => ['sometimes', 'date'],
-            'value' => ['sometimes', 'numeric', 'min:0'],
-            'status' => ['sometimes', 'string', 'max:50'],
-            'category' => ['sometimes', 'string', 'max:50'],
+            'value' => ['sometimes', 'required', 'numeric', 'min:0'],
+            'status' => ['sometimes', 'required', 'string', 'max:50'],
+            'category' => ['sometimes', 'required', 'string', 'max:50'],
             'description' => ['nullable', 'string'],
             'tags' => ['nullable', 'array'],
             'tags.*' => ['string', 'max:100'],
@@ -104,6 +108,7 @@ class ContractController extends Controller
         ]);
 
         $contract->update($data);
+        $contract->load('department');
 
         AuditLog::record([
             'user' => $request->user()?->name ?? 'System',

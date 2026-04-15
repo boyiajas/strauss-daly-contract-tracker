@@ -5,6 +5,7 @@ import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { ContractList } from './components/ContractList';
 import { UserList } from './components/UserList';
+import { DepartmentManagement } from './components/DepartmentManagement';
 import { Settings } from './components/Settings';
 import { Notifications } from './components/Notifications';
 import { AuditLog } from './components/AuditLog';
@@ -99,6 +100,7 @@ export default function App() {
               <Route path="/users" element={<UserList />} />
               <Route path="/users/new" element={<NewUser />} />
               <Route path="/users/:userId/edit" element={<NewUser />} />
+              <Route path="/departments" element={<DepartmentManagement />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/audit-log" element={<AuditLog />} />
