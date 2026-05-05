@@ -6,11 +6,13 @@ export interface Contract {
   partyName: string;
   departmentId?: string;
   departmentName?: string;
+  contractType?: string;
+  portfolio?: string;
   startDate: string;
   endDate: string;
   value: number;
   status: ContractStatus;
-  category: 'Service' | 'Employment' | 'Vendor' | 'Lease' | 'Other';
+  category: string;
   lastModified: string;
   description?: string;
   tags?: string[];

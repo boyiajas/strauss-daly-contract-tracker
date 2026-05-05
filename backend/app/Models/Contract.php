@@ -10,6 +10,8 @@ class Contract extends Model
         'title',
         'party_name',
         'department_id',
+        'contract_type',
+        'portfolio',
         'start_date',
         'end_date',
         'value',

@@ -5,9 +5,10 @@ import {
   FileText, 
   Upload, 
   Bell, 
-  X, 
   ArrowLeft,
   Save,
+  Plus,
+  Trash2,
   CheckCircle2,
   RefreshCw
 } from 'lucide-react';
@@ -15,6 +16,57 @@ import { Contract, Department } from '../types';
 import { useToast } from '../App';
 import { createContract, fetchContract, updateContract } from '../lib/contracts';
 import { fetchDepartments } from '../lib/departments';
+
+const contractTypeOptions = [
+  'Service Level Contract',
+  'Addendum',
+  'Master Agreement',
+  'Framework Agreement',
+  'Statement of Work',
+  'Consultancy Agreement',
+  'Retainer Agreement',
+  'Lease Agreement',
+  'Settlement Agreement',
+  'Outsourcing Agreement',
+  'Mandate Letter',
+  'Non-Disclosure Agreement',
+  'Other',
+];
+
+const categoryOptions = [
+  'Debt Collection',
+  'Conveyancing',
+  'Pre-Legal',
+  'Commercial',
+  'Public Sector',
+  'Litigation',
+  'Compliance',
+  'Insolvency & Restructuring',
+  'Property',
+  'Employment',
+  'Corporate Services',
+  'Other',
+];
+
+const portfolioOptions = [
+  'VAF',
+  'Foreclosures',
+  'Debt Review',
+  'Unsecured',
+  'Bonds',
+  'Transfers',
+  'Estates',
+  'Collections',
+  'Recoveries',
+  'Litigation',
+  'Property',
+  'Municipal',
+  'Commercial',
+  'Public Sector',
+  'Other',
+];
+
+const defaultAlertDays = [90, 60, 30];
 
 export function NewContract() {
   const navigate = useNavigate();
@@ -27,19 +79,27 @@ export function NewContract() {
   const [departmentLoadError, setDepartmentLoadError] = useState<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [tagsInput, setTagsInput] = useState('');
+  const [customDeadline, setCustomDeadline] = useState('');
+  const [isAddingDeadline, setIsAddingDeadline] = useState(false);
   const [newContract, setNewContract] = useState<Partial<Contract>>({
     title: '',
     partyName: '',
     departmentId: '',
+    contractType: '',
+    portfolio: '',
     startDate: '',
     endDate: '',
     value: 0,
     status: 'Draft',
-    category: 'Service',
+    category: '',
     description: '',
     tags: [],
     notificationDays: [90, 60, 30],
   });
+
+  const alertDeadlineOptions = Array.from(
+    new Set([...(newContract.notificationDays ?? []), ...defaultAlertDays])
+  ).sort((a, b) => b - a);
 
   useEffect(() => {
     let isActive = true;
@@ -95,6 +155,8 @@ export function NewContract() {
       newContract.title?.trim() &&
       newContract.partyName?.trim() &&
       newContract.departmentId &&
+      newContract.contractType &&
+      newContract.portfolio &&
       newContract.startDate &&
       newContract.endDate &&
       newContract.category &&
@@ -129,6 +191,33 @@ export function NewContract() {
 
   const handleFileUpload = () => {
     showToast('File upload dialog opened');
+  };
+
+  const handleAddDeadline = () => {
+    const days = Number(customDeadline);
+    if (!Number.isInteger(days) || days <= 0) {
+      showToast('Enter a valid number of days greater than zero.', 'error');
+      return;
+    }
+
+    if (newContract.notificationDays?.includes(days)) {
+      showToast('That alert deadline already exists.', 'error');
+      return;
+    }
+
+    setNewContract((prev) => ({
+      ...prev,
+      notificationDays: Array.from(new Set([...(prev.notificationDays ?? []), days])).sort((a, b) => b - a),
+    }));
+    setCustomDeadline('');
+    setIsAddingDeadline(false);
+  };
+
+  const handleRemoveDeadline = (days: number) => {
+    setNewContract((prev) => ({
+      ...prev,
+      notificationDays: (prev.notificationDays ?? []).filter((day) => day !== days),
+    }));
   };
 
   return (
@@ -203,7 +292,7 @@ export function NewContract() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Counterparty</label>
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Client &amp; Supplies</label>
                 <input 
                   required
                   type="text" 
@@ -237,6 +326,60 @@ export function NewContract() {
               </div>
 
               <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Type</label>
+                <select
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  value={newContract.contractType ?? ''}
+                  onChange={e => setNewContract({ ...newContract, contractType: e.target.value })}
+                  disabled={isLoading}
+                >
+                  <option value="">Select contract type</option>
+                  {contractTypeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Category</label>
+                <select
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  value={newContract.category ?? ''}
+                  onChange={e => setNewContract({ ...newContract, category: e.target.value })}
+                  disabled={isLoading}
+                >
+                  <option value="">Select category</option>
+                  {categoryOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Portfolio</label>
+                <select
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  value={newContract.portfolio ?? ''}
+                  onChange={e => setNewContract({ ...newContract, portfolio: e.target.value })}
+                  disabled={isLoading}
+                >
+                  <option value="">Select portfolio</option>
+                  {portfolioOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Status</label>
                 <select 
                   required
@@ -262,23 +405,6 @@ export function NewContract() {
                   onChange={e => setNewContract({...newContract, value: Number(e.target.value)})}
                   disabled={isLoading}
                 />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Category</label>
-                <select 
-                  required
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                  value={newContract.category}
-                  onChange={e => setNewContract({...newContract, category: e.target.value as any})}
-                  disabled={isLoading}
-                >
-                  <option value="Service">Service</option>
-                  <option value="Lease">Lease</option>
-                  <option value="Employment">Employment</option>
-                  <option value="Vendor">Vendor</option>
-                  <option value="Other">Other</option>
-                </select>
               </div>
 
               <div className="space-y-1.5">
@@ -376,32 +502,95 @@ export function NewContract() {
               <div className="space-y-3">
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Alert Deadlines</label>
                 <div className="space-y-2">
-                  {[90, 60, 30].map((days) => {
-                    const label = `${days} Days Before Expiry`;
+                  {alertDeadlineOptions.map((days) => {
+                    const label = `${days} ${days === 1 ? 'Day' : 'Days'} Before Expiry`;
                     const isChecked = newContract.notificationDays?.includes(days) ?? false;
+                    const isCustomDeadline = !defaultAlertDays.includes(days);
                     return (
-                      <label key={label} className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer group hover:bg-white hover:border-blue-200 transition-all">
-                        <input 
-                          type="checkbox" 
-                          checked={isChecked}
-                          onChange={(event) => {
-                            const next = event.target.checked;
-                            setNewContract((prev) => {
-                              const current = prev.notificationDays ?? [];
-                              const updated = next
-                                ? Array.from(new Set([...current, days])).sort((a, b) => b - a)
-                                : current.filter((day) => day !== days);
-                              return { ...prev, notificationDays: updated };
-                            });
-                          }}
-                          disabled={isLoading}
-                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20" 
-                        />
-                        <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900 transition-colors">{label}</span>
-                      </label>
+                      <div key={label} className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl group hover:bg-white hover:border-blue-200 transition-all">
+                        <label className="flex min-w-0 flex-1 items-center gap-3 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked}
+                            onChange={(event) => {
+                              const next = event.target.checked;
+                              setNewContract((prev) => {
+                                const current = prev.notificationDays ?? [];
+                                const updated = next
+                                  ? Array.from(new Set([...current, days])).sort((a, b) => b - a)
+                                  : current.filter((day) => day !== days);
+                                return { ...prev, notificationDays: updated };
+                              });
+                            }}
+                            disabled={isLoading}
+                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20" 
+                          />
+                          <span className="text-xs font-bold text-slate-700 group-hover:text-slate-900 transition-colors">{label}</span>
+                        </label>
+                        {isCustomDeadline && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDeadline(days)}
+                            disabled={isLoading}
+                            className="inline-flex items-center justify-center rounded-lg p-2 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                            aria-label={`Remove ${label}`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
+                {isAddingDeadline && (
+                  <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={customDeadline}
+                      onChange={(event) => setCustomDeadline(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          handleAddDeadline();
+                        }
+                      }}
+                      placeholder="Days before expiry"
+                      disabled={isLoading}
+                      className="min-w-0 flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddDeadline}
+                      disabled={isLoading}
+                      className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomDeadline('');
+                        setIsAddingDeadline(false);
+                      }}
+                      disabled={isLoading}
+                      className="inline-flex items-center justify-center rounded-xl border border-red-100 bg-red-50 p-2.5 text-red-500 hover:bg-red-100 transition-colors disabled:opacity-50"
+                      aria-label="Cancel deadline"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsAddingDeadline(true)}
+                  disabled={isLoading || isAddingDeadline}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 px-4 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50/50 transition-all disabled:opacity-50"
+                >
+                  <Plus size={16} />
+                  Add Deadline
+                </button>
               </div>
 
               <div className="space-y-4">

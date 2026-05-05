@@ -69,7 +69,10 @@ export function ContractList() {
   const filteredContracts = contracts.filter(c => 
     c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.partyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (c.departmentName ?? '').toLowerCase().includes(searchQuery.toLowerCase())
+    (c.departmentName ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.contractType ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.portfolio ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const formatDateRange = (startDate: string, endDate: string) => {
@@ -251,6 +254,22 @@ export function ContractList() {
                                 <span className="text-slate-300">•</span>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
                                   {contract.departmentName}
+                                </span>
+                              </>
+                            )}
+                            {contract.contractType && (
+                              <>
+                                <span className="text-slate-300">•</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                                  {contract.contractType}
+                                </span>
+                              </>
+                            )}
+                            {contract.portfolio && (
+                              <>
+                                <span className="text-slate-300">•</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                                  {contract.portfolio}
                                 </span>
                               </>
                             )}
