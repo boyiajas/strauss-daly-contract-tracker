@@ -1,4 +1,4 @@
-import { Contract } from '../types';
+import { Contract, Department } from '../types';
 
 type ContractApi = {
   id: number;
@@ -122,6 +122,185 @@ export const mapContractToApi = (contract: Partial<Contract>) => {
     notification_days: contract.notificationDays ?? [],
     file_name: contract.fileName ?? null,
   };
+};
+
+export type ImportedContractRow = {
+  contractId?: string;
+  contract: Partial<Contract>;
+  rowNumber: number;
+};
+
+export type ParsedContractsWorkbook = {
+  rows: ImportedContractRow[];
+  errors: string[];
+};
+
+const normalizeLookupKey = (value: string) => value.trim().toLowerCase();
+
+const parseStringCell = (value: unknown) => String(value ?? '').trim();
+
+const parseCsvList = (value: unknown) =>
+  parseStringCell(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const parseNumericCell = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  const stringValue = parseStringCell(value);
+  if (!stringValue) {
+    return 0;
+  }
+
+  let normalized = stringValue.replace(/[^\d,.-]/g, '');
+  if (normalized.includes(',') && normalized.includes('.')) {
+    normalized =
+      normalized.lastIndexOf(',') > normalized.lastIndexOf('.')
+        ? normalized.replace(/\./g, '').replace(',', '.')
+        : normalized.replace(/,/g, '');
+  } else if (normalized.includes(',')) {
+    normalized = normalized.replace(',', '.');
+  }
+
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const collectIndexedValues = (row: Record<string, unknown>, pattern: RegExp) =>
+  Object.entries(row)
+    .map(([key, value]) => {
+      const match = key.match(pattern);
+      if (!match) return null;
+      return {
+        index: Number.parseInt(match[1] ?? '0', 10),
+        value: parseStringCell(value),
+      };
+    })
+    .filter((item): item is { index: number; value: string } => Boolean(item) && Number.isFinite(item.index))
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.value)
+    .filter(Boolean);
+
+export const parseContractsWorkbook = async (
+  file: File,
+  departments: Department[]
+): Promise<ParsedContractsWorkbook> => {
+  const XLSX = await import('xlsx');
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const sheetName = workbook.SheetNames[0];
+
+  if (!sheetName) {
+    throw new Error('The selected workbook does not contain any sheets.');
+  }
+
+  const worksheet = workbook.Sheets[sheetName];
+  const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
+    defval: '',
+    raw: false,
+  });
+
+  const departmentMap = new Map(
+    departments.map((department) => [normalizeLookupKey(department.name), department])
+  );
+  const rows: ImportedContractRow[] = [];
+  const errors: string[] = [];
+
+  rawRows.forEach((row, index) => {
+    const rowNumber = index + 2;
+    const values = Object.values(row).map((value) => parseStringCell(value));
+    if (values.every((value) => value.length === 0)) {
+      return;
+    }
+
+    const title = parseStringCell(row['Contract Title']);
+    const partyName = parseStringCell(row.Counterparty);
+    const departmentName = parseStringCell(row.Department);
+    const department = departmentMap.get(normalizeLookupKey(departmentName));
+    const contractType = parseStringCell(row.Type);
+    const category = parseStringCell(row.Category);
+    const portfolio = parseStringCell(row.Portfolio);
+    const status = parseStringCell(row.Status) || 'Draft';
+    const startDate = parseStringCell(row['Start Date']);
+    const endDate = parseStringCell(row['End Date']);
+    const value = parseNumericCell(row.Value);
+    const description = parseStringCell(row.Description);
+    const tags = parseCsvList(row.Tags);
+
+    const notificationDays = collectIndexedValues(row, /^Alert Deadline (\d+) \(Days\)$/)
+      .map((item) => Number.parseInt(item, 10))
+      .filter((item) => Number.isInteger(item) && item > 0);
+    const fallbackNotificationDays = parseCsvList(row['Alert Deadline Days'])
+      .map((item) => Number.parseInt(item, 10))
+      .filter((item) => Number.isInteger(item) && item > 0);
+    const normalizedNotificationDays = Array.from(
+      new Set(notificationDays.length > 0 ? notificationDays : fallbackNotificationDays)
+    ).sort((a, b) => b - a);
+
+    const notificationEmails = collectIndexedValues(row, /^Contract Notification Email (\d+)$/);
+    const fallbackNotificationEmails = parseCsvList(row['Notification Emails']);
+    const normalizedNotificationEmails = notificationEmails.length > 0
+      ? notificationEmails
+      : fallbackNotificationEmails;
+
+    const notificationPhones = collectIndexedValues(row, /^Contract Notification Phone (\d+)$/);
+    const fallbackNotificationPhones = parseCsvList(row['Notification Phones']);
+    const normalizedNotificationPhones = notificationPhones.length > 0
+      ? notificationPhones
+      : fallbackNotificationPhones;
+
+    const missingFields = [
+      !title ? 'Contract Title' : null,
+      !partyName ? 'Counterparty' : null,
+      !departmentName ? 'Department' : null,
+      !contractType ? 'Type' : null,
+      !portfolio ? 'Portfolio' : null,
+      !startDate ? 'Start Date' : null,
+      !category ? 'Category' : null,
+      !status ? 'Status' : null,
+    ].filter(Boolean);
+
+    if (missingFields.length > 0) {
+      errors.push(`Row ${rowNumber}: missing ${missingFields.join(', ')}.`);
+      return;
+    }
+
+    if (!department) {
+      errors.push(`Row ${rowNumber}: department "${departmentName}" does not exist in the system.`);
+      return;
+    }
+
+    const contractId = parseStringCell(row['Contract ID']) || undefined;
+
+    rows.push({
+      contractId,
+      rowNumber,
+      contract: {
+        title,
+        partyName,
+        departmentId: department.id,
+        departmentName: department.name,
+        contractType,
+        category,
+        portfolio,
+        status: status as Contract['status'],
+        startDate,
+        endDate: endDate || undefined,
+        value,
+        description: description || undefined,
+        tags,
+        notificationDays: normalizedNotificationDays,
+        notificationEmails: normalizedNotificationEmails,
+        notificationPhones: normalizedNotificationPhones,
+        notificationEmail: normalizedNotificationEmails[0] || undefined,
+        notificationPhone: normalizedNotificationPhones[0] || undefined,
+      },
+    });
+  });
+
+  return { rows, errors };
 };
 
 export const fetchContracts = async () => {

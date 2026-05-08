@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -6,6 +6,7 @@ import {
   MoreVertical, 
   ExternalLink, 
   Download,
+  Upload,
   Calendar,
   Building2,
   Tag,
@@ -19,7 +20,8 @@ import {
   Trash2
 } from 'lucide-react';
 import { Contract } from '../types';
-import { deleteContract, fetchContracts } from '../lib/contracts';
+import { createContract, deleteContract, fetchContracts, parseContractsWorkbook, updateContract } from '../lib/contracts';
+import { fetchDepartments } from '../lib/departments';
 import { fetchNotificationSettings } from '../lib/notifications';
 import { cn, formatCurrency } from '../lib/utils';
 import { useToast } from '../App';
@@ -49,31 +51,30 @@ export function ContractList() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const loadContracts = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await fetchContracts();
+      setContracts(data);
+      setLoadError(null);
+    } catch {
+      setLoadError('Unable to load contracts.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let isActive = true;
-    setIsLoading(true);
-    fetchContracts()
-      .then((data) => {
-        if (!isActive) return;
-        setContracts(data);
-        setLoadError(null);
-      })
-      .catch(() => {
-        if (!isActive) return;
-        setLoadError('Unable to load contracts.');
-      })
-      .finally(() => {
-        if (!isActive) return;
-        setIsLoading(false);
-      });
-
+    void loadContracts();
     return () => {
-      isActive = false;
+      //
     };
-  }, []);
+  }, [loadContracts]);
 
   const filteredContracts = contracts.filter(c => 
     c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -242,6 +243,79 @@ export function ContractList() {
       });
   };
 
+  const handleImportClick = () => {
+    if (isImporting) return;
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    showToast('Preparing contract import...');
+
+    try {
+      const departments = await fetchDepartments();
+      const parsedWorkbook = await parseContractsWorkbook(file, departments);
+
+      if (parsedWorkbook.rows.length === 0) {
+        showToast(parsedWorkbook.errors[0] ?? 'No valid contract rows were found in that workbook.', 'error');
+        return;
+      }
+
+      const existingContractIds = new Set(contracts.map((contract) => contract.id));
+      const importErrors = [...parsedWorkbook.errors];
+      let createdCount = 0;
+      let updatedCount = 0;
+
+      for (const row of parsedWorkbook.rows) {
+        try {
+          if (row.contractId && existingContractIds.has(row.contractId)) {
+            await updateContract(row.contractId, row.contract);
+            updatedCount += 1;
+          } else {
+            await createContract(row.contract);
+            createdCount += 1;
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to import this row.';
+          importErrors.push(`Row ${row.rowNumber}: ${message}`);
+        }
+      }
+
+      await loadContracts();
+
+      const importedCount = createdCount + updatedCount;
+      if (importedCount === 0) {
+        showToast(importErrors[0] ?? 'No contracts were imported from that workbook.', 'error');
+        return;
+      }
+
+      if (importErrors.length > 0) {
+        showToast(
+          `Imported ${importedCount} contracts (${updatedCount} updated, ${createdCount} created). ${importErrors.length} row${importErrors.length === 1 ? '' : 's'} failed. ${importErrors[0]}`,
+          'error'
+        );
+        return;
+      }
+
+      showToast(
+        `Imported ${importedCount} contracts successfully (${updatedCount} updated, ${createdCount} created).`,
+        'success'
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to import contracts right now.';
+      showToast(message, 'error');
+    } finally {
+      setIsImporting(false);
+      event.target.value = '';
+    }
+  };
+
   const openContract = (id: string) => {
     navigate(`/contracts/${id}`);
     closeMenu();
@@ -318,12 +392,27 @@ export function ContractList() {
           <p className="text-slate-500 text-sm">Manage and track all organizational legal documents.</p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleImportFile}
+          />
           <button 
             onClick={() => navigate('/contracts/new')}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 rounded-lg text-sm font-semibold text-white hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20"
           >
             <Plus size={16} />
             New Contract
+          </button>
+          <button
+            onClick={handleImportClick}
+            disabled={isImporting || isExporting}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            <Upload size={16} />
+            {isImporting ? 'Importing...' : 'Import'}
           </button>
           <button 
             onClick={() => showToast('Filters applied')}
@@ -334,7 +423,7 @@ export function ContractList() {
           </button>
           <button 
             onClick={handleExport}
-            disabled={isExporting}
+            disabled={isExporting || isImporting}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
           >
             {isExporting ? <Plus size={16} className="animate-spin" /> : <Download size={16} />}
