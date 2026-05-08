@@ -21,6 +21,8 @@ class Contract extends Model
         'tags',
         'notification_email',
         'notification_phone',
+        'notification_emails',
+        'notification_phones',
         'notification_days',
         'file_name',
     ];
@@ -30,6 +32,8 @@ class Contract extends Model
         'end_date' => 'date',
         'value' => 'decimal:2',
         'tags' => 'array',
+        'notification_emails' => 'array',
+        'notification_phones' => 'array',
         'notification_days' => 'array',
     ];
 

@@ -12,7 +12,7 @@ type ContractApi = {
     name: string;
   } | null;
   start_date: string;
-  end_date: string;
+  end_date?: string | null;
   value: string | number;
   status: string;
   category: string;
@@ -20,6 +20,8 @@ type ContractApi = {
   tags?: string[] | null;
   notification_email?: string | null;
   notification_phone?: string | null;
+  notification_emails?: string[] | null;
+  notification_phones?: string[] | null;
   notification_days?: number[] | null;
   file_name?: string | null;
   created_at?: string;
@@ -33,46 +35,94 @@ const toNumber = (value: string | number | null | undefined) => {
   return typeof value === 'string' ? Number(value) : value;
 };
 
-export const mapContractFromApi = (contract: ContractApi): Contract => ({
-  id: String(contract.id),
-  title: contract.title,
-  partyName: contract.party_name,
-  departmentId: contract.department_id ? String(contract.department_id) : undefined,
-  departmentName: contract.department?.name ?? undefined,
-  contractType: contract.contract_type ?? undefined,
-  portfolio: contract.portfolio ?? undefined,
-  startDate: contract.start_date,
-  endDate: contract.end_date,
-  value: toNumber(contract.value),
-  status: contract.status as Contract['status'],
-  category: contract.category as Contract['category'],
-  lastModified: contract.updated_at || contract.created_at || contract.start_date,
-  description: contract.description ?? undefined,
-  tags: contract.tags ?? [],
-  notificationEmail: contract.notification_email ?? undefined,
-  notificationPhone: contract.notification_phone ?? undefined,
-  notificationDays: contract.notification_days ?? undefined,
-  fileName: contract.file_name ?? undefined,
-});
+const normalizeDateOnly = (value: string | null | undefined) => {
+  if (!value) return '';
+  const match = value.match(/^\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : value;
+};
 
-export const mapContractToApi = (contract: Partial<Contract>) => ({
-  title: contract.title ?? '',
-  party_name: contract.partyName ?? '',
-  department_id: contract.departmentId ? Number(contract.departmentId) : null,
-  contract_type: contract.contractType ?? '',
-  portfolio: contract.portfolio ?? '',
-  start_date: contract.startDate ?? '',
-  end_date: contract.endDate ?? '',
-  value: contract.value ?? 0,
-  status: contract.status ?? 'Draft',
-  category: contract.category ?? '',
-  description: contract.description ?? null,
-  tags: contract.tags ?? [],
-  notification_email: contract.notificationEmail ?? null,
-  notification_phone: contract.notificationPhone ?? null,
-  notification_days: contract.notificationDays ?? [],
-  file_name: contract.fileName ?? null,
-});
+const normalizeStringArray = (value?: string[] | null, fallback?: string | null) => {
+  const normalized = (value ?? [])
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (normalized.length > 0) {
+    return normalized;
+  }
+
+  if (fallback?.trim()) {
+    return [fallback.trim()];
+  }
+
+  return [];
+};
+
+export const mapContractFromApi = (contract: ContractApi): Contract => {
+  const notificationEmails = normalizeStringArray(
+    contract.notification_emails,
+    contract.notification_email
+  );
+  const notificationPhones = normalizeStringArray(
+    contract.notification_phones,
+    contract.notification_phone
+  );
+
+  return {
+    id: String(contract.id),
+    title: contract.title,
+    partyName: contract.party_name,
+    departmentId: contract.department_id ? String(contract.department_id) : undefined,
+    departmentName: contract.department?.name ?? undefined,
+    contractType: contract.contract_type ?? undefined,
+    portfolio: contract.portfolio ?? undefined,
+    startDate: normalizeDateOnly(contract.start_date),
+    endDate: normalizeDateOnly(contract.end_date),
+    value: toNumber(contract.value),
+    status: contract.status as Contract['status'],
+    category: contract.category as Contract['category'],
+    lastModified: contract.updated_at || contract.created_at || contract.start_date,
+    description: contract.description ?? undefined,
+    tags: contract.tags ?? [],
+    notificationEmail: notificationEmails[0] ?? undefined,
+    notificationPhone: notificationPhones[0] ?? undefined,
+    notificationEmails,
+    notificationPhones,
+    notificationDays: contract.notification_days ?? undefined,
+    fileName: contract.file_name ?? undefined,
+  };
+};
+
+export const mapContractToApi = (contract: Partial<Contract>) => {
+  const notificationEmails = normalizeStringArray(
+    contract.notificationEmails,
+    contract.notificationEmail
+  );
+  const notificationPhones = normalizeStringArray(
+    contract.notificationPhones,
+    contract.notificationPhone
+  );
+
+  return {
+    title: contract.title ?? '',
+    party_name: contract.partyName ?? '',
+    department_id: contract.departmentId ? Number(contract.departmentId) : null,
+    contract_type: contract.contractType ?? '',
+    portfolio: contract.portfolio ?? '',
+    start_date: normalizeDateOnly(contract.startDate) ?? '',
+    end_date: normalizeDateOnly(contract.endDate) || null,
+    value: contract.value ?? 0,
+    status: contract.status ?? 'Draft',
+    category: contract.category ?? '',
+    description: contract.description ?? null,
+    tags: contract.tags ?? [],
+    notification_email: notificationEmails[0] ?? null,
+    notification_phone: notificationPhones[0] ?? null,
+    notification_emails: notificationEmails,
+    notification_phones: notificationPhones,
+    notification_days: contract.notificationDays ?? [],
+    file_name: contract.fileName ?? null,
+  };
+};
 
 export const fetchContracts = async () => {
   const response = await fetch('/api/contracts', {

@@ -20,16 +20,25 @@ import {
 } from 'lucide-react';
 import { Contract } from '../types';
 import { deleteContract, fetchContracts } from '../lib/contracts';
-import { format } from 'date-fns';
+import { fetchNotificationSettings } from '../lib/notifications';
 import { cn, formatCurrency } from '../lib/utils';
 import { useToast } from '../App';
+import { contractStatusStyles, formatContractDateRange } from '../lib/contract-ui';
 
-const statusStyles: any = {
-  'Active': 'bg-emerald-50 text-emerald-700 border-emerald-100',
-  'Draft': 'bg-slate-50 text-slate-700 border-slate-100',
-  'Expired': 'bg-red-50 text-red-700 border-red-100',
-  'Terminated': 'bg-slate-900 text-white border-slate-800',
-  'Pending Approval': 'bg-amber-50 text-amber-700 border-amber-100',
+const getNotificationContacts = (values?: string[], fallback?: string) => {
+  const normalized = (values ?? [])
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (normalized.length > 0) {
+    return normalized;
+  }
+
+  if (fallback?.trim()) {
+    return [fallback.trim()];
+  }
+
+  return [];
 };
 
 export function ContractList() {
@@ -75,31 +84,166 @@ export function ContractList() {
     c.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const formatDateRange = (startDate: string, endDate: string) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      return `${startDate} — ${endDate}`;
-    }
-    return `${format(start, 'dd MMM yyyy')} — ${format(end, 'dd MMM yyyy')}`;
-  };
-
   const closeMenu = useCallback(() => {
     setActiveMenu(null);
     setMenuPosition(null);
   }, []);
 
   const handleExport = () => {
+    if (filteredContracts.length === 0) {
+      showToast('No contracts available to export.', 'error');
+      return;
+    }
+
     setIsExporting(true);
-    showToast('Exporting contract repository...');
-    setTimeout(() => {
-      setIsExporting(false);
-      showToast('Contract repository exported to CSV');
-    }, 1500);
+    showToast('Preparing Excel export...');
+
+    Promise.all([import('xlsx'), fetchNotificationSettings()])
+      .then(([XLSX, notificationSettings]) => {
+        const activeRecipients = (notificationSettings.recipients ?? []).filter(
+          (recipient) => (recipient.isActive ?? true) && recipient.recipient.trim().length > 0
+        );
+        const maxDeadlineCount = filteredContracts.reduce(
+          (max, contract) => Math.max(max, contract.notificationDays?.length ?? 0),
+          0
+        );
+        const maxEmailCount = filteredContracts.reduce(
+          (max, contract) =>
+            Math.max(
+              max,
+              getNotificationContacts(contract.notificationEmails, contract.notificationEmail).length
+            ),
+          0
+        );
+        const maxPhoneCount = filteredContracts.reduce(
+          (max, contract) =>
+            Math.max(
+              max,
+              getNotificationContacts(contract.notificationPhones, contract.notificationPhone).length
+            ),
+          0
+        );
+
+        const recipientColumns = activeRecipients.reduce<Record<string, string>>((acc, recipient, index) => {
+          const columnNumber = index + 1;
+          acc[`Notification Recipient ${columnNumber} Channel`] = recipient.channel;
+          acc[`Notification Recipient ${columnNumber}`] = recipient.recipient.trim();
+          return acc;
+        }, {});
+
+        const rows = filteredContracts.map((contract) => {
+          const notificationEmails = getNotificationContacts(
+            contract.notificationEmails,
+            contract.notificationEmail
+          );
+          const notificationPhones = getNotificationContacts(
+            contract.notificationPhones,
+            contract.notificationPhone
+          );
+          const deadlineColumns = Array.from({ length: maxDeadlineCount }).reduce<Record<string, string | number>>(
+            (acc, _, index) => {
+              const days = contract.notificationDays?.[index];
+              acc[`Alert Deadline ${index + 1} (Days)`] = days ?? '';
+              return acc;
+            },
+            {}
+          );
+          const notificationEmailColumns = Array.from({ length: maxEmailCount }).reduce<Record<string, string>>(
+            (acc, _, index) => {
+              acc[`Contract Notification Email ${index + 1}`] = notificationEmails[index] ?? '';
+              return acc;
+            },
+            {}
+          );
+          const notificationPhoneColumns = Array.from({ length: maxPhoneCount }).reduce<Record<string, string>>(
+            (acc, _, index) => {
+              acc[`Contract Notification Phone ${index + 1}`] = notificationPhones[index] ?? '';
+              return acc;
+            },
+            {}
+          );
+
+          return {
+            'Contract ID': contract.id,
+            'Contract Title': contract.title,
+            Counterparty: contract.partyName,
+            Department: contract.departmentName ?? '',
+            Type: contract.contractType ?? '',
+            Category: contract.category,
+            Portfolio: contract.portfolio ?? '',
+            Status: contract.status,
+            'Start Date': contract.startDate || '',
+            'End Date': contract.endDate || '',
+            Duration: formatContractDateRange(contract.startDate, contract.endDate),
+            Value: Number(contract.value) || 0,
+            Description: contract.description ?? '',
+            Tags: (contract.tags ?? []).join(', '),
+            'Alert Deadline Days': (contract.notificationDays ?? []).join(', '),
+            ...deadlineColumns,
+            'Notification Emails': notificationEmails.join(', '),
+            ...notificationEmailColumns,
+            'Notification Phones': notificationPhones.join(', '),
+            ...notificationPhoneColumns,
+            ...recipientColumns,
+          };
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const columns = [
+          { wch: 12 },
+          { wch: 36 },
+          { wch: 32 },
+          { wch: 22 },
+          { wch: 24 },
+          { wch: 18 },
+          { wch: 18 },
+          { wch: 18 },
+          { wch: 14 },
+          { wch: 14 },
+          { wch: 28 },
+          { wch: 16 },
+          { wch: 40 },
+          { wch: 30 },
+          { wch: 20 },
+          ...Array.from({ length: maxDeadlineCount }, () => ({ wch: 18 })),
+          { wch: 34 },
+          ...Array.from({ length: maxEmailCount }, () => ({ wch: 34 })),
+          { wch: 24 },
+          ...Array.from({ length: maxPhoneCount }, () => ({ wch: 24 })),
+        ];
+        activeRecipients.forEach(() => {
+          columns.push({ wch: 22 });
+          columns.push({ wch: 34 });
+        });
+        worksheet['!cols'] = columns;
+
+        const valueColumnIndex = 11;
+        const range = XLSX.utils.decode_range(worksheet['!ref'] ?? 'A1');
+        for (let row = range.s.r + 1; row <= range.e.r; row += 1) {
+          const cellAddress = XLSX.utils.encode_cell({ c: valueColumnIndex, r: row });
+          if (worksheet[cellAddress]) {
+            worksheet[cellAddress].t = 'n';
+            worksheet[cellAddress].z = '"R" #,##0.00';
+          }
+        }
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Contracts');
+
+        const today = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(workbook, `contracts-repository-${today}.xlsx`, { compression: true });
+        showToast('Contract repository exported to Excel.', 'success');
+      })
+      .catch(() => {
+        showToast('Unable to export contracts right now.', 'error');
+      })
+      .finally(() => {
+        setIsExporting(false);
+      });
   };
 
-  const handleAction = (action: string, id: string) => {
-    showToast(`${action} action triggered for contract ${id}`);
+  const openContract = (id: string) => {
+    navigate(`/contracts/${id}`);
     closeMenu();
   };
 
@@ -284,11 +428,11 @@ export function ContractList() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <Calendar size={14} />
-                      <span>{formatDateRange(contract.startDate, contract.endDate)}</span>
-                    </div>
-                  </td>
+                      <div className="flex items-center gap-2 text-xs text-slate-500">
+                        <Calendar size={14} />
+                        <span>{formatContractDateRange(contract.startDate, contract.endDate)}</span>
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       <span className="text-sm font-bold text-slate-900">
                         {formatCurrency(contract.value)}
@@ -297,7 +441,7 @@ export function ContractList() {
                     <td className="px-6 py-4">
                       <span className={cn(
                         "px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wide",
-                        statusStyles[contract.status]
+                        contractStatusStyles[contract.status]
                       )}>
                         {contract.status}
                       </span>
@@ -305,7 +449,7 @@ export function ContractList() {
                     <td className="px-6 py-4 text-right relative">
                       <div className="flex items-center justify-end gap-2">
                         <button 
-                          onClick={() => handleAction('External View', contract.id)}
+                          onClick={() => navigate(`/contracts/${contract.id}`)}
                           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                         >
                           <ExternalLink size={18} />
@@ -351,10 +495,13 @@ export function ContractList() {
                 className="fixed z-50 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 animate-in fade-in zoom-in-95 duration-200"
                 style={{ top: menuPosition.top, left: menuPosition.left }}
               >
-                <button onClick={() => handleAction('View', activeContract.id)} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left">
+                <button onClick={() => openContract(activeContract.id)} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left">
                   <Eye size={16} /> View Details
                 </button>
-                <button onClick={() => navigate(`/contracts/${activeContract.id}/edit`)} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left">
+                <button onClick={() => {
+                  navigate(`/contracts/${activeContract.id}/edit`);
+                  closeMenu();
+                }} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left">
                   <Edit2 size={16} /> Edit Contract
                 </button>
                 <div className="h-px bg-slate-100 my-1" />

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('title');
             $table->string('party_name');
             $table->date('start_date');
-            $table->date('end_date');
+            $table->date('end_date')->nullable();
             $table->decimal('value', 15, 2)->default(0);
             $table->string('status')->default('Draft');
             $table->string('category')->default('Service');
@@ -24,6 +24,8 @@ return new class extends Migration
             $table->json('tags')->nullable();
             $table->string('notification_email')->nullable();
             $table->string('notification_phone')->nullable();
+            $table->json('notification_emails')->nullable();
+            $table->json('notification_phones')->nullable();
             $table->string('file_name')->nullable();
             $table->timestamps();
         });

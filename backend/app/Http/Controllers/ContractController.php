@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Contract;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 
 class ContractController extends Controller
 {
@@ -41,7 +42,7 @@ class ContractController extends Controller
             'contract_type' => ['required', 'string', 'max:100'],
             'portfolio' => ['required', 'string', 'max:100'],
             'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date'],
+            'end_date' => ['nullable', 'date'],
             'value' => ['required', 'numeric', 'min:0'],
             'status' => ['required', 'string', 'max:50'],
             'category' => ['required', 'string', 'max:100'],
@@ -50,10 +51,16 @@ class ContractController extends Controller
             'tags.*' => ['string', 'max:100'],
             'notification_email' => ['nullable', 'email', 'max:255'],
             'notification_phone' => ['nullable', 'string', 'max:50'],
+            'notification_emails' => ['nullable', 'array'],
+            'notification_emails.*' => ['email', 'max:255'],
+            'notification_phones' => ['nullable', 'array'],
+            'notification_phones.*' => ['string', 'max:50'],
             'notification_days' => ['nullable', 'array'],
             'notification_days.*' => ['integer', 'min:1'],
             'file_name' => ['nullable', 'string', 'max:255'],
         ]);
+
+        $data = $this->prepareNotificationContacts($data);
 
         $contract = Contract::create($data);
         $contract->load('department');
@@ -97,7 +104,7 @@ class ContractController extends Controller
             'contract_type' => ['sometimes', 'required', 'string', 'max:100'],
             'portfolio' => ['sometimes', 'required', 'string', 'max:100'],
             'start_date' => ['sometimes', 'date'],
-            'end_date' => ['sometimes', 'date'],
+            'end_date' => ['sometimes', 'nullable', 'date'],
             'value' => ['sometimes', 'required', 'numeric', 'min:0'],
             'status' => ['sometimes', 'required', 'string', 'max:50'],
             'category' => ['sometimes', 'required', 'string', 'max:100'],
@@ -106,10 +113,16 @@ class ContractController extends Controller
             'tags.*' => ['string', 'max:100'],
             'notification_email' => ['nullable', 'email', 'max:255'],
             'notification_phone' => ['nullable', 'string', 'max:50'],
+            'notification_emails' => ['nullable', 'array'],
+            'notification_emails.*' => ['email', 'max:255'],
+            'notification_phones' => ['nullable', 'array'],
+            'notification_phones.*' => ['string', 'max:50'],
             'notification_days' => ['nullable', 'array'],
             'notification_days.*' => ['integer', 'min:1'],
             'file_name' => ['nullable', 'string', 'max:255'],
         ]);
+
+        $data = $this->prepareNotificationContacts($data);
 
         $contract->update($data);
         $contract->load('department');
@@ -142,5 +155,38 @@ class ContractController extends Controller
         ]);
 
         return response()->json(['status' => 'deleted']);
+    }
+
+    private function prepareNotificationContacts(array $data): array
+    {
+        $notificationEmails = collect($data['notification_emails'] ?? [])
+            ->map(fn ($email) => trim((string) $email))
+            ->filter()
+            ->values()
+            ->all();
+
+        if (count($notificationEmails) === 0 && !empty($data['notification_email'])) {
+            $notificationEmails = [trim((string) $data['notification_email'])];
+        }
+
+        $notificationPhones = collect($data['notification_phones'] ?? [])
+            ->map(fn ($phone) => trim((string) $phone))
+            ->filter()
+            ->values()
+            ->all();
+
+        if (count($notificationPhones) === 0 && !empty($data['notification_phone'])) {
+            $notificationPhones = [trim((string) $data['notification_phone'])];
+        }
+
+        return array_merge(
+            Arr::except($data, ['notification_emails', 'notification_phones']),
+            [
+                'notification_email' => $notificationEmails[0] ?? null,
+                'notification_phone' => $notificationPhones[0] ?? null,
+                'notification_emails' => $notificationEmails,
+                'notification_phones' => $notificationPhones,
+            ]
+        );
     }
 }

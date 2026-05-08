@@ -109,6 +109,7 @@ export function Dashboard() {
     const activeContracts = contracts.filter((contract) => contract.status === 'Active').length;
     const totalValue = contracts.reduce((sum, contract) => sum + (Number(contract.value) || 0), 0);
     const expiringSoon = contracts.filter((contract) => {
+      if (!contract.endDate) return false;
       const endDate = parseISO(contract.endDate);
       return endDate >= now && endDate <= expiringWindow;
     }).length;
@@ -175,6 +176,7 @@ export function Dashboard() {
   const upcomingExpirations = useMemo(() => {
     return contracts
       .map((contract) => {
+        if (!contract.endDate) return null;
         const endDate = parseISO(contract.endDate);
         return {
           id: contract.id,
@@ -184,6 +186,7 @@ export function Dashboard() {
           days: differenceInDays(endDate, now),
         };
       })
+      .filter((item): item is { id: string; title: string; party: string; date: string; days: number } => item !== null)
       .filter((item) => item.days >= 0)
       .sort((a, b) => a.days - b.days)
       .slice(0, 3);

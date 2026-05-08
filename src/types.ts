@@ -9,7 +9,7 @@ export interface Contract {
   contractType?: string;
   portfolio?: string;
   startDate: string;
-  endDate: string;
+  endDate?: string;
   value: number;
   status: ContractStatus;
   category: string;
@@ -18,6 +18,8 @@ export interface Contract {
   tags?: string[];
   notificationEmail?: string;
   notificationPhone?: string;
+  notificationEmails?: string[];
+  notificationPhones?: string[];
   notificationDays?: number[];
   fileName?: string;
 }

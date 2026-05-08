@@ -10,6 +10,7 @@ import { Settings } from './components/Settings';
 import { Notifications } from './components/Notifications';
 import { AuditLog } from './components/AuditLog';
 import { NewContract } from './components/NewContract';
+import { ContractDetail } from './components/ContractDetail';
 import { NewUser } from './components/NewUser';
 import { Login } from './components/Login';
 import { Register } from './components/Register';
@@ -96,6 +97,7 @@ export default function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/contracts" element={<ContractList />} />
               <Route path="/contracts/new" element={<NewContract />} />
+              <Route path="/contracts/:contractId" element={<ContractDetail />} />
               <Route path="/contracts/:contractId/edit" element={<NewContract />} />
               <Route path="/users" element={<UserList />} />
               <Route path="/users/new" element={<NewUser />} />

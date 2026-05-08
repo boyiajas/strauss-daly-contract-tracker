@@ -6,6 +6,7 @@ use App\Models\NotificationLog;
 use App\Models\NotificationSetting;
 use Carbon\Carbon;
 use Illuminate\Foundation\Inspiring;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
@@ -28,6 +29,7 @@ Artisan::command('contracts:send-notifications', function () {
         ->all();
 
     $contracts = Contract::query()
+        ->whereNotNull('end_date')
         ->whereDate('end_date', '>=', $today)
         ->whereNotIn('status', ['Expired', 'Terminated'])
         ->get();
@@ -37,6 +39,16 @@ Artisan::command('contracts:send-notifications', function () {
     foreach ($contracts as $contract) {
         $endDate = Carbon::parse($contract->end_date)->startOfDay();
         $daysUntil = $today->diffInDays($endDate, false);
+        $contractNotificationEmails = collect(Arr::wrap($contract->notification_emails))
+            ->map(fn ($recipient) => is_string($recipient) ? trim($recipient) : '')
+            ->filter()
+            ->values()
+            ->all();
+        $contractNotificationPhones = collect(Arr::wrap($contract->notification_phones))
+            ->map(fn ($recipient) => is_string($recipient) ? trim($recipient) : '')
+            ->filter()
+            ->values()
+            ->all();
 
         if ($daysUntil < 0) {
             continue;
@@ -59,10 +71,16 @@ Artisan::command('contracts:send-notifications', function () {
             if (in_array($type, ['SMS', 'WhatsApp'], true) && $settings?->primary_phone) {
                 $channelRecipients[] = $settings->primary_phone;
             }
-            if ($type === 'Email' && $contract->notification_email) {
+            if ($type === 'Email') {
+                $channelRecipients = array_merge($channelRecipients, $contractNotificationEmails);
+            }
+            if (in_array($type, ['SMS', 'WhatsApp'], true)) {
+                $channelRecipients = array_merge($channelRecipients, $contractNotificationPhones);
+            }
+            if ($type === 'Email' && $contract->notification_email && count($contractNotificationEmails) === 0) {
                 $channelRecipients[] = $contract->notification_email;
             }
-            if (in_array($type, ['SMS', 'WhatsApp'], true) && $contract->notification_phone) {
+            if (in_array($type, ['SMS', 'WhatsApp'], true) && $contract->notification_phone && count($contractNotificationPhones) === 0) {
                 $channelRecipients[] = $contract->notification_phone;
             }
 

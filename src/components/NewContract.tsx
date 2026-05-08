@@ -16,57 +16,24 @@ import { Contract, Department } from '../types';
 import { useToast } from '../App';
 import { createContract, fetchContract, updateContract } from '../lib/contracts';
 import { fetchDepartments } from '../lib/departments';
+import {
+  categoryOptions,
+  contractTypeOptions,
+  defaultAlertDays,
+  portfolioOptions,
+} from '../lib/contract-ui';
 
-const contractTypeOptions = [
-  'Service Level Contract',
-  'Addendum',
-  'Master Agreement',
-  'Framework Agreement',
-  'Statement of Work',
-  'Consultancy Agreement',
-  'Retainer Agreement',
-  'Lease Agreement',
-  'Settlement Agreement',
-  'Outsourcing Agreement',
-  'Mandate Letter',
-  'Non-Disclosure Agreement',
-  'Other',
-];
+const ensureContactInputs = (values?: string[], fallback?: string) => {
+  if (values && values.length > 0) {
+    return values.map((value) => value ?? '');
+  }
 
-const categoryOptions = [
-  'Debt Collection',
-  'Conveyancing',
-  'Pre-Legal',
-  'Commercial',
-  'Public Sector',
-  'Litigation',
-  'Compliance',
-  'Insolvency & Restructuring',
-  'Property',
-  'Employment',
-  'Corporate Services',
-  'Other',
-];
+  if (fallback?.trim()) {
+    return [fallback.trim()];
+  }
 
-const portfolioOptions = [
-  'VAF',
-  'Foreclosures',
-  'Debt Review',
-  'Unsecured',
-  'Bonds',
-  'Transfers',
-  'Estates',
-  'Collections',
-  'Recoveries',
-  'Litigation',
-  'Property',
-  'Municipal',
-  'Commercial',
-  'Public Sector',
-  'Other',
-];
-
-const defaultAlertDays = [90, 60, 30];
+  return [''];
+};
 
 export function NewContract() {
   const navigate = useNavigate();
@@ -95,6 +62,8 @@ export function NewContract() {
     description: '',
     tags: [],
     notificationDays: [90, 60, 30],
+    notificationEmails: [''],
+    notificationPhones: [''],
   });
 
   const alertDeadlineOptions = Array.from(
@@ -126,11 +95,27 @@ export function NewContract() {
     fetchContract(contractId)
       .then((contract) => {
         if (!isActive) return;
-        setNewContract(contract);
+        const notificationEmails = ensureContactInputs(
+          contract.notificationEmails,
+          contract.notificationEmail
+        );
+        const notificationPhones = ensureContactInputs(
+          contract.notificationPhones,
+          contract.notificationPhone
+        );
+
+        setNewContract({
+          ...contract,
+          notificationDays:
+            contract.notificationDays && contract.notificationDays.length > 0
+              ? contract.notificationDays
+              : [90, 60, 30],
+          notificationEmails,
+          notificationPhones,
+          notificationEmail: notificationEmails.find((value) => value.trim()) || undefined,
+          notificationPhone: notificationPhones.find((value) => value.trim()) || undefined,
+        });
         setTagsInput((contract.tags ?? []).join(', '));
-        if (!contract.notificationDays || contract.notificationDays.length === 0) {
-          setNewContract((prev) => ({ ...prev, notificationDays: [90, 60, 30] }));
-        }
         setLoadError(null);
       })
       .catch(() => {
@@ -151,23 +136,22 @@ export function NewContract() {
     e?.preventDefault();
     if (isSaving) return;
 
-    const hasRequiredFields = Boolean(
-      newContract.title?.trim() &&
-      newContract.partyName?.trim() &&
-      newContract.departmentId &&
-      newContract.contractType &&
-      newContract.portfolio &&
-      newContract.startDate &&
-      newContract.endDate &&
-      newContract.category &&
-      newContract.status &&
-      newContract.value !== undefined &&
-      newContract.value !== null &&
-      String(newContract.value) !== ''
-    );
+    const missingFields = [
+      !newContract.title?.trim() ? 'title' : null,
+      !newContract.partyName?.trim() ? 'counterparty' : null,
+      !newContract.departmentId ? 'department' : null,
+      !newContract.contractType ? 'type' : null,
+      !newContract.portfolio ? 'portfolio' : null,
+      !newContract.startDate ? 'start date' : null,
+      !newContract.category ? 'category' : null,
+      !newContract.status ? 'status' : null,
+      newContract.value === undefined || newContract.value === null || String(newContract.value) === ''
+        ? 'value'
+        : null,
+    ].filter(Boolean);
 
-    if (!hasRequiredFields) {
-      showToast('Complete all required contract fields before saving.', 'error');
+    if (missingFields.length > 0) {
+      showToast(`Complete all required contract fields before saving: ${missingFields.join(', ')}.`, 'error');
       return;
     }
 
@@ -220,6 +204,70 @@ export function NewContract() {
     }));
   };
 
+  const handleNotificationEmailChange = (index: number, value: string) => {
+    setNewContract((prev) => {
+      const notificationEmails = [...ensureContactInputs(prev.notificationEmails, prev.notificationEmail)];
+      notificationEmails[index] = value;
+      return {
+        ...prev,
+        notificationEmails,
+        notificationEmail: notificationEmails.find((item) => item.trim()) || undefined,
+      };
+    });
+  };
+
+  const handleAddNotificationEmail = () => {
+    setNewContract((prev) => ({
+      ...prev,
+      notificationEmails: [...ensureContactInputs(prev.notificationEmails, prev.notificationEmail), ''],
+    }));
+  };
+
+  const handleRemoveNotificationEmail = (index: number) => {
+    setNewContract((prev) => {
+      const current = [...ensureContactInputs(prev.notificationEmails, prev.notificationEmail)];
+      const notificationEmails = current.filter((_, itemIndex) => itemIndex !== index);
+      const nextEmails = notificationEmails.length > 0 ? notificationEmails : [''];
+      return {
+        ...prev,
+        notificationEmails: nextEmails,
+        notificationEmail: nextEmails.find((item) => item.trim()) || undefined,
+      };
+    });
+  };
+
+  const handleNotificationPhoneChange = (index: number, value: string) => {
+    setNewContract((prev) => {
+      const notificationPhones = [...ensureContactInputs(prev.notificationPhones, prev.notificationPhone)];
+      notificationPhones[index] = value;
+      return {
+        ...prev,
+        notificationPhones,
+        notificationPhone: notificationPhones.find((item) => item.trim()) || undefined,
+      };
+    });
+  };
+
+  const handleAddNotificationPhone = () => {
+    setNewContract((prev) => ({
+      ...prev,
+      notificationPhones: [...ensureContactInputs(prev.notificationPhones, prev.notificationPhone), ''],
+    }));
+  };
+
+  const handleRemoveNotificationPhone = (index: number) => {
+    setNewContract((prev) => {
+      const current = [...ensureContactInputs(prev.notificationPhones, prev.notificationPhone)];
+      const notificationPhones = current.filter((_, itemIndex) => itemIndex !== index);
+      const nextPhones = notificationPhones.length > 0 ? notificationPhones : [''];
+      return {
+        ...prev,
+        notificationPhones: nextPhones,
+        notificationPhone: nextPhones.find((item) => item.trim()) || undefined,
+      };
+    });
+  };
+
   return (
     <div className="p-4 sm:p-8 space-y-8 animate-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -233,7 +281,7 @@ export function NewContract() {
           <div>
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">{isEditing ? 'Edit Contract' : 'New Contract'}</h2>
             <p className="text-slate-500 text-sm mt-1">
-              {isEditing ? 'Update the agreement details and alerts.' : 'Register a new agreement and set up alerts.'}
+              {isEditing ? 'Update the agreement record, renewal controls, and notification rules.' : 'Register a new agreement and set up alerts.'}
             </p>
           </div>
         </div>
@@ -250,7 +298,7 @@ export function NewContract() {
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50"
           >
             {isSaving ? <RefreshCw size={18} className="animate-spin" /> : <Save size={18} />}
-            {isEditing ? 'Update' : 'Save'}
+            {isEditing ? 'Save Changes' : 'Save'}
           </button>
         </div>
       </div>
@@ -422,10 +470,9 @@ export function NewContract() {
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">End Date</label>
                 <input 
-                  required
                   type="date" 
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                  value={newContract.endDate}
+                  value={newContract.endDate || ''}
                   onChange={e => setNewContract({...newContract, endDate: e.target.value})}
                   disabled={isLoading}
                 />
@@ -596,25 +643,77 @@ export function NewContract() {
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Notification Email</label>
-                  <input 
-                    type="email" 
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                    placeholder="Leave blank to use default"
-                    value={newContract.notificationEmail || ''}
-                    onChange={e => setNewContract({...newContract, notificationEmail: e.target.value})}
-                    disabled={isLoading}
-                  />
+                  <div className="space-y-3">
+                    {ensureContactInputs(newContract.notificationEmails, newContract.notificationEmail).map((email, index) => (
+                      <div key={`notification-email-${index}`} className="flex items-center gap-3">
+                        <input
+                          type="email"
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                          placeholder="Leave blank to use default"
+                          value={email}
+                          onChange={(event) => handleNotificationEmailChange(index, event.target.value)}
+                          disabled={isLoading}
+                        />
+                        {ensureContactInputs(newContract.notificationEmails, newContract.notificationEmail).length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNotificationEmail(index)}
+                            disabled={isLoading}
+                            className="inline-flex items-center justify-center rounded-xl border border-red-100 bg-red-50 p-2.5 text-red-500 transition-colors hover:bg-red-100 disabled:opacity-50"
+                            aria-label={`Remove notification email ${index + 1}`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleAddNotificationEmail}
+                      disabled={isLoading}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 px-4 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50/50 transition-all disabled:opacity-50"
+                    >
+                      <Plus size={16} />
+                      Add More Email
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Notification Phone</label>
-                  <input 
-                    type="tel" 
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                    placeholder="Leave blank to use default"
-                    value={newContract.notificationPhone || ''}
-                    onChange={e => setNewContract({...newContract, notificationPhone: e.target.value})}
-                    disabled={isLoading}
-                  />
+                  <div className="space-y-3">
+                    {ensureContactInputs(newContract.notificationPhones, newContract.notificationPhone).map((phone, index) => (
+                      <div key={`notification-phone-${index}`} className="flex items-center gap-3">
+                        <input
+                          type="tel"
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                          placeholder="Leave blank to use default"
+                          value={phone}
+                          onChange={(event) => handleNotificationPhoneChange(index, event.target.value)}
+                          disabled={isLoading}
+                        />
+                        {ensureContactInputs(newContract.notificationPhones, newContract.notificationPhone).length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNotificationPhone(index)}
+                            disabled={isLoading}
+                            className="inline-flex items-center justify-center rounded-xl border border-red-100 bg-red-50 p-2.5 text-red-500 transition-colors hover:bg-red-100 disabled:opacity-50"
+                            aria-label={`Remove notification phone ${index + 1}`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={handleAddNotificationPhone}
+                      disabled={isLoading}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 px-4 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50/50 transition-all disabled:opacity-50"
+                    >
+                      <Plus size={16} />
+                      Add More Phone
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -634,7 +733,7 @@ export function NewContract() {
               className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 text-white rounded-2xl text-base font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 disabled:opacity-50"
             >
               {isSaving ? <RefreshCw size={20} className="animate-spin" /> : <CheckCircle2 size={20} />}
-              Save
+              {isEditing ? 'Save Changes' : 'Save'}
             </button>
           </div>
         </div>
