@@ -492,7 +492,18 @@ export function ContractList() {
                 </tr>
               ) : (
                 filteredContracts.map((contract) => (
-                  <tr key={contract.id} className="hover:bg-slate-50/50 transition-colors group">
+                  <tr
+                    key={contract.id}
+                    onClick={() => navigate(`/contracts/${contract.id}`)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        navigate(`/contracts/${contract.id}`);
+                      }
+                    }}
+                    tabIndex={0}
+                    className="cursor-pointer hover:bg-slate-50/50 transition-colors group focus:outline-none focus:bg-slate-50/70"
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center">
@@ -563,13 +574,19 @@ export function ContractList() {
                     <td className="px-6 py-4 text-right relative">
                       <div className="flex items-center justify-end gap-2">
                         <button 
-                          onClick={() => navigate(`/contracts/${contract.id}`)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            navigate(`/contracts/${contract.id}`);
+                          }}
                           className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                         >
                           <ExternalLink size={18} />
                         </button>
                       <button 
-                        onClick={(event) => handleMenuToggle(contract.id, event)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleMenuToggle(contract.id, event);
+                        }}
                         className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
                       >
                         <MoreVertical size={18} />
