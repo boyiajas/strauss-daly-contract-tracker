@@ -324,8 +324,9 @@ export function ContractDetail() {
                 </div>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <DetailItem icon={Calendar} label="Start Date" value={formatContractDate(contract.startDate)} />
+                <DetailItem icon={Calendar} label="Review Date" value={formatContractDate(contract.reviewDate)} />
                 <DetailItem icon={Calendar} label="End Date" value={formatContractDate(contract.endDate)} />
                 <DetailItem icon={Clock3} label="Duration" value={getContractDurationLabel(contract.startDate, contract.endDate)} />
               </div>

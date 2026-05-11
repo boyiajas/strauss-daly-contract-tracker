@@ -12,6 +12,7 @@ type ContractApi = {
     name: string;
   } | null;
   start_date: string;
+  review_date?: string | null;
   end_date?: string | null;
   value: string | number;
   status: string;
@@ -76,6 +77,7 @@ export const mapContractFromApi = (contract: ContractApi): Contract => {
     contractType: contract.contract_type ?? undefined,
     portfolio: contract.portfolio ?? undefined,
     startDate: normalizeDateOnly(contract.start_date),
+    reviewDate: normalizeDateOnly(contract.review_date),
     endDate: normalizeDateOnly(contract.end_date),
     value: toNumber(contract.value),
     status: contract.status as Contract['status'],
@@ -109,6 +111,7 @@ export const mapContractToApi = (contract: Partial<Contract>) => {
     contract_type: contract.contractType ?? '',
     portfolio: contract.portfolio ?? '',
     start_date: normalizeDateOnly(contract.startDate) ?? '',
+    review_date: normalizeDateOnly(contract.reviewDate) || null,
     end_date: normalizeDateOnly(contract.endDate) || null,
     value: contract.value ?? 0,
     status: contract.status ?? 'Draft',
@@ -224,6 +227,7 @@ export const parseContractsWorkbook = async (
     const portfolio = parseStringCell(row.Portfolio);
     const status = parseStringCell(row.Status) || 'Draft';
     const startDate = parseStringCell(row['Start Date']);
+    const reviewDate = parseStringCell(row['Review Date']);
     const endDate = parseStringCell(row['End Date']);
     const value = parseNumericCell(row.Value);
     const description = parseStringCell(row.Description);
@@ -287,6 +291,7 @@ export const parseContractsWorkbook = async (
         portfolio,
         status: status as Contract['status'],
         startDate,
+        reviewDate: reviewDate || undefined,
         endDate: endDate || undefined,
         value,
         description: description || undefined,

@@ -13,6 +13,7 @@ class Contract extends Model
         'contract_type',
         'portfolio',
         'start_date',
+        'review_date',
         'end_date',
         'value',
         'status',
@@ -29,6 +30,7 @@ class Contract extends Model
 
     protected $casts = [
         'start_date' => 'date',
+        'review_date' => 'date',
         'end_date' => 'date',
         'value' => 'decimal:2',
         'tags' => 'array',

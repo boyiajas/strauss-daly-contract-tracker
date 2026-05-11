@@ -7,6 +7,9 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+OneDrive_2_2026-05-11/
+contracts-repository-2026-05-07.xlsx
+sla_import_extraction_summary.json
 
 # Backend Laravel
 backend/vendor/

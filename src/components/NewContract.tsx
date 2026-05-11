@@ -55,6 +55,7 @@ export function NewContract() {
     contractType: '',
     portfolio: '',
     startDate: '',
+    reviewDate: '',
     endDate: '',
     value: 0,
     status: 'Draft',
@@ -463,6 +464,17 @@ export function NewContract() {
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
                   value={newContract.startDate}
                   onChange={e => setNewContract({...newContract, startDate: e.target.value})}
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Review Date</label>
+                <input
+                  type="date"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                  value={newContract.reviewDate || ''}
+                  onChange={e => setNewContract({...newContract, reviewDate: e.target.value})}
                   disabled={isLoading}
                 />
               </div>

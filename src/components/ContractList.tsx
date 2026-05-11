@@ -43,6 +43,9 @@ const getNotificationContacts = (values?: string[], fallback?: string) => {
   return [];
 };
 
+const getContractImportKey = (title?: string, partyName?: string) =>
+  `${title?.trim().toLowerCase() ?? ''}::${partyName?.trim().toLowerCase() ?? ''}`;
+
 export function ContractList() {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -174,6 +177,7 @@ export function ContractList() {
             Portfolio: contract.portfolio ?? '',
             Status: contract.status,
             'Start Date': contract.startDate || '',
+            'Review Date': contract.reviewDate || '',
             'End Date': contract.endDate || '',
             Duration: formatContractDateRange(contract.startDate, contract.endDate),
             Value: Number(contract.value) || 0,
@@ -201,6 +205,7 @@ export function ContractList() {
           { wch: 18 },
           { wch: 14 },
           { wch: 14 },
+          { wch: 14 },
           { wch: 28 },
           { wch: 16 },
           { wch: 40 },
@@ -218,7 +223,7 @@ export function ContractList() {
         });
         worksheet['!cols'] = columns;
 
-        const valueColumnIndex = 11;
+        const valueColumnIndex = 12;
         const range = XLSX.utils.decode_range(worksheet['!ref'] ?? 'A1');
         for (let row = range.s.r + 1; row <= range.e.r; row += 1) {
           const cellAddress = XLSX.utils.encode_cell({ c: valueColumnIndex, r: row });
@@ -267,18 +272,38 @@ export function ContractList() {
         return;
       }
 
-      const existingContractIds = new Set(contracts.map((contract) => contract.id));
+      const existingContractsById = new Map(
+        contracts.map((contract) => [contract.id, contract])
+      );
+      const existingContractsByKey = new Map(
+        contracts.map((contract) => [getContractImportKey(contract.title, contract.partyName), contract])
+      );
       const importErrors = [...parsedWorkbook.errors];
       let createdCount = 0;
       let updatedCount = 0;
 
       for (const row of parsedWorkbook.rows) {
         try {
-          if (row.contractId && existingContractIds.has(row.contractId)) {
-            await updateContract(row.contractId, row.contract);
+          const contractKey = getContractImportKey(row.contract.title, row.contract.partyName);
+          const matchedContract =
+            existingContractsByKey.get(contractKey) ??
+            (row.contractId ? existingContractsById.get(row.contractId) : undefined);
+
+          if (matchedContract) {
+            const updatedContract = await updateContract(matchedContract.id, row.contract);
+            existingContractsById.set(updatedContract.id, updatedContract);
+            existingContractsByKey.set(
+              getContractImportKey(updatedContract.title, updatedContract.partyName),
+              updatedContract
+            );
             updatedCount += 1;
           } else {
-            await createContract(row.contract);
+            const createdContract = await createContract(row.contract);
+            existingContractsById.set(createdContract.id, createdContract);
+            existingContractsByKey.set(
+              getContractImportKey(createdContract.title, createdContract.partyName),
+              createdContract
+            );
             createdCount += 1;
           }
         } catch (error) {

@@ -9,6 +9,7 @@ export interface Contract {
   contractType?: string;
   portfolio?: string;
   startDate: string;
+  reviewDate?: string;
   endDate?: string;
   value: number;
   status: ContractStatus;

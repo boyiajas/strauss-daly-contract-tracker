@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('title');
             $table->string('party_name');
             $table->date('start_date');
+            $table->date('review_date')->nullable();
             $table->date('end_date')->nullable();
             $table->decimal('value', 15, 2)->default(0);
             $table->string('status')->default('Draft');
