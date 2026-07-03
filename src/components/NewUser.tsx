@@ -260,6 +260,7 @@ export function NewUser() {
                 >
                   <option value="Viewer">Viewer (Read-only)</option>
                   <option value="Manager">Manager (Edit access)</option>
+                  <option value="Authoriser">Authoriser (Approves contracts)</option>
                   <option value="Admin">Administrator (Full access)</option>
                 </select>
                 <p className="text-[10px] text-slate-400 font-medium mt-1">Determines what actions the user can perform.</p>

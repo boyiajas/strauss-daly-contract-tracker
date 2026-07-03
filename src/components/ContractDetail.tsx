@@ -5,17 +5,24 @@ import {
   Bell,
   Building2,
   Calendar,
+  CircleUserRound,
   Clock3,
   Edit3,
+  ExternalLink,
   FileText,
   FolderKanban,
+  Mail,
+  MapPin,
+  Phone,
   ShieldCheck,
   Tag,
+  UserCheck,
 } from 'lucide-react';
 import { Contract } from '../types';
 import { fetchContract } from '../lib/contracts';
 import { useToast } from '../App';
 import { cn, formatCurrency } from '../lib/utils';
+import { canAuthoriseContracts, getCurrentUserRole } from '../lib/auth';
 import {
   contractStatusStyles,
   formatContractDate,
@@ -23,6 +30,7 @@ import {
   getContractDurationLabel,
   getDaysUntilExpiry,
 } from '../lib/contract-ui';
+import { approveContract } from '../lib/contracts';
 
 const DetailItem = ({
   icon: Icon,
@@ -65,6 +73,8 @@ export function ContractDetail() {
   const [contract, setContract] = useState<Contract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const currentUserRole = getCurrentUserRole();
+  const userCanAuthorise = canAuthoriseContracts(currentUserRole);
 
   useEffect(() => {
     if (!contractId) return;
@@ -119,6 +129,18 @@ export function ContractDetail() {
     contract?.notificationPhones,
     contract?.notificationPhone
   );
+
+  const handleApproveContract = async () => {
+    if (!contract) return;
+
+    try {
+      const updated = await approveContract(contract.id);
+      setContract(updated);
+      showToast('Contract approved and activated successfully.', 'success');
+    } catch {
+      showToast('Unable to approve contract right now.', 'error');
+    }
+  };
 
   if (isLoading) {
     return (
@@ -198,6 +220,15 @@ export function ContractDetail() {
         </div>
 
         <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          {userCanAuthorise && contract.status === 'Pending Approval' && (
+            <button
+              onClick={handleApproveContract}
+              className="flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-2.5 text-sm font-bold text-emerald-700 transition-all hover:bg-emerald-100"
+            >
+              <ShieldCheck size={18} />
+              Approve Contract
+            </button>
+          )}
           <button
             onClick={() => showToast('Contract summary export coming soon')}
             className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50"
@@ -286,6 +317,8 @@ export function ContractDetail() {
                 <DetailItem icon={FolderKanban} label="Department" value={contract.departmentName || 'Not assigned'} />
                 <DetailItem icon={Tag} label="Category" value={contract.category} />
                 <DetailItem icon={ShieldCheck} label="Type" value={contract.contractType || 'Not specified'} />
+                <DetailItem icon={UserCheck} label="Assigned To" value={contract.assignedToUserName || 'No authoriser assigned'} />
+                <DetailItem icon={Mail} label="Assigned Email" value={contract.assignedToUserEmail || 'No assigned email'} />
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5">
@@ -329,6 +362,69 @@ export function ContractDetail() {
                 <DetailItem icon={Calendar} label="Review Date" value={formatContractDate(contract.reviewDate)} />
                 <DetailItem icon={Calendar} label="End Date" value={formatContractDate(contract.endDate)} />
                 <DetailItem icon={Clock3} label="Duration" value={getContractDurationLabel(contract.startDate, contract.endDate)} />
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-blue-50 p-2 text-blue-600">
+                  <CircleUserRound size={18} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900">Client Address Book</h3>
+                  <p className="text-sm text-slate-500">Linked client profile, address, and contact people.</p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <DetailItem
+                  icon={CircleUserRound}
+                  label="Client"
+                  value={
+                    contract.clientName
+                      ? `${contract.clientName}`
+                      : contract.partyName || 'No linked client'
+                  }
+                />
+                <DetailItem
+                  icon={MapPin}
+                  label="Address"
+                  value={contract.client?.address?.trim() || 'No address captured'}
+                />
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className="flex items-center gap-2 text-slate-500">
+                  <CircleUserRound size={16} />
+                  <p className="text-xs font-bold uppercase tracking-[0.18em]">Client Contacts</p>
+                </div>
+                {contract.client?.contacts?.length ? (
+                  <div className="mt-4 grid gap-3">
+                    {contract.client.contacts.map((contact, index) => (
+                      <div key={`${contact.name}-${contact.email ?? ''}-${index}`} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                        <p className="text-sm font-bold text-slate-900">{contact.name || `Contact ${index + 1}`}</p>
+                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                          <div className="flex items-start gap-2">
+                            <Mail size={16} className="mt-0.5 text-slate-400" />
+                            <div>
+                              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Email</p>
+                              <p className="mt-1 text-sm font-semibold text-slate-700">{contact.email?.trim() || 'Not captured'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <Phone size={16} className="mt-0.5 text-slate-400" />
+                            <div>
+                              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Phone</p>
+                              <p className="mt-1 text-sm font-semibold text-slate-700">{contact.phone?.trim() || 'Not captured'}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm font-semibold text-slate-600">No linked client contacts captured yet.</p>
+                )}
               </div>
             </section>
           </div>
@@ -416,7 +512,30 @@ export function ContractDetail() {
               <div className="mt-6 space-y-4">
                 <DetailItem icon={FileText} label="Contract ID" value={`#${contract.id}`} />
                 <DetailItem icon={Clock3} label="Last Modified" value={formatContractDate(contract.lastModified)} />
-                <DetailItem icon={FileText} label="Attached File" value={contract.fileName || 'No document linked yet'} />
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-slate-500">
+                    <FileText size={16} />
+                    <span className="text-[11px] font-bold uppercase tracking-[0.18em]">Attached File</span>
+                  </div>
+                  {contract.documents?.length ? (
+                    <div className="space-y-2">
+                      {contract.documents.map((document) => (
+                        <a
+                          key={document.path}
+                          href={`/api/contracts/${contract.id}/document?path=${encodeURIComponent(document.path)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+                        >
+                          {document.name}
+                          <ExternalLink size={16} />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm font-semibold text-slate-900">No document linked yet</p>
+                  )}
+                </div>
                 <DetailItem icon={Tag} label="Portfolio" value={contract.portfolio || 'Not specified'} />
               </div>
             </section>

@@ -41,25 +41,33 @@ const activityIcons: Record<string, React.ComponentType<any>> = {
   System: Bell,
 };
 
-const StatCard = ({ title, value, icon: Icon, trend, color }: any) => (
-  <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-    <div className="flex justify-between items-start mb-4">
-      <div className={cn("p-3 rounded-xl", color)}>
-        <Icon className="text-white" size={24} />
-      </div>
-      {trend && (
-        <div className={cn(
-          "flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full",
-          trend > 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
-        )}>
-          {trend > 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-          {Math.abs(trend)}%
+const StatCard = ({ title, value, icon: Icon, trend, color, onClick }: any) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="w-full bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+  >
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <div className={cn("inline-flex p-3 rounded-xl", color)}>
+          <Icon className="text-white" size={24} />
         </div>
-      )}
+        <p className="text-slate-500 text-sm font-medium mt-4">{title}</p>
+      </div>
+      <div className="flex flex-col items-end gap-3 text-right shrink-0">
+        {trend && (
+          <div className={cn(
+            "flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full",
+            trend > 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+          )}>
+            {trend > 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+            {Math.abs(trend)}%
+          </div>
+        )}
+        <h3 className="text-3xl font-bold text-slate-900">{value}</h3>
+      </div>
     </div>
-    <p className="text-slate-500 text-sm font-medium">{title}</p>
-    <h3 className="text-2xl font-bold text-slate-900 mt-1">{value}</h3>
-  </div>
+  </button>
 );
 
 export function Dashboard() {
@@ -107,18 +115,18 @@ export function Dashboard() {
   const totals = useMemo(() => {
     const totalContracts = contracts.length;
     const activeContracts = contracts.filter((contract) => contract.status === 'Active').length;
-    const totalValue = contracts.reduce((sum, contract) => sum + (Number(contract.value) || 0), 0);
     const expiringSoon = contracts.filter((contract) => {
       if (!contract.endDate) return false;
       const endDate = parseISO(contract.endDate);
       return endDate >= now && endDate <= expiringWindow;
     }).length;
+    const expiredContracts = contracts.filter((contract) => contract.status === 'Expired').length;
 
     return {
       totalContracts,
       activeContracts,
       expiringSoon,
-      totalValue,
+      expiredContracts,
     };
   }, [contracts, expiringWindow, now]);
 
@@ -206,6 +214,10 @@ export function Dashboard() {
     1
   );
 
+  const openContractStat = (filter: 'all' | 'active' | 'expiring-soon' | 'expired') => {
+    navigate(`/contracts?filter=${filter}`);
+  };
+
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
       {loadError && (
@@ -243,6 +255,7 @@ export function Dashboard() {
           icon={TrendingUp} 
           trend={undefined} 
           color="bg-blue-600" 
+          onClick={() => openContractStat('all')}
         />
         <StatCard 
           title="Active Contracts" 
@@ -250,6 +263,7 @@ export function Dashboard() {
           icon={CheckCircle2} 
           trend={undefined} 
           color="bg-emerald-500" 
+          onClick={() => openContractStat('active')}
         />
         <StatCard 
           title="Expiring Soon" 
@@ -257,13 +271,15 @@ export function Dashboard() {
           icon={Clock} 
           trend={undefined} 
           color="bg-amber-500" 
+          onClick={() => openContractStat('expiring-soon')}
         />
         <StatCard 
-          title="Total Value" 
-          value={formatCurrency(totals.totalValue)} 
+          title="Expired Contracts" 
+          value={totals.expiredContracts}
           icon={AlertCircle} 
           trend={undefined} 
           color="bg-indigo-600" 
+          onClick={() => openContractStat('expired')}
         />
       </div>
 

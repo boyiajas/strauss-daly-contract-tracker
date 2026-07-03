@@ -4,6 +4,7 @@ import {
   FileText, 
   Users, 
   Building2,
+  Briefcase,
   Settings, 
   Bell, 
   LogOut,
@@ -17,6 +18,7 @@ import { cn } from '../lib/utils';
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: FileText, label: 'Contracts', path: '/contracts' },
+  { icon: Briefcase, label: 'Clients', path: '/clients' },
   { icon: Users, label: 'User Management', path: '/users' },
   { icon: Building2, label: 'Departments', path: '/departments' },
   { icon: Bell, label: 'Notifications', path: '/notifications' },

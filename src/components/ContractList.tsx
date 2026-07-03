@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Filter, 
   MoreVertical, 
@@ -17,15 +17,19 @@ import {
   ChevronRight,
   Eye,
   Edit2,
-  Trash2
+  CheckCircle2,
+  Trash2,
+  Archive
 } from 'lucide-react';
+import { addDays, isValid, parseISO } from 'date-fns';
 import { Contract } from '../types';
-import { createContract, deleteContract, fetchContracts, parseContractsWorkbook, updateContract } from '../lib/contracts';
+import { approveContract, createContract, deleteContract, fetchContracts, parseContractsWorkbook, updateContract } from '../lib/contracts';
 import { fetchDepartments } from '../lib/departments';
 import { fetchNotificationSettings } from '../lib/notifications';
 import { cn, formatCurrency } from '../lib/utils';
 import { useToast } from '../App';
 import { contractStatusStyles, formatContractDateRange } from '../lib/contract-ui';
+import { canAuthoriseContracts, getCurrentUserRole } from '../lib/auth';
 
 const getNotificationContacts = (values?: string[], fallback?: string) => {
   const normalized = (values ?? [])
@@ -48,16 +52,24 @@ const getContractImportKey = (title?: string, partyName?: string) =>
 
 export function ContractList() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [durationFilter, setDurationFilter] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const currentUserRole = getCurrentUserRole();
+  const userCanAuthorise = canAuthoriseContracts(currentUserRole);
 
   const loadContracts = useCallback(async () => {
     setIsLoading(true);
@@ -79,14 +91,115 @@ export function ContractList() {
     };
   }, [loadContracts]);
 
-  const filteredContracts = contracts.filter(c => 
-    c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.partyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (c.departmentName ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (c.contractType ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (c.portfolio ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.category.toLowerCase().includes(searchQuery.toLowerCase())
+  useEffect(() => {
+    const querySearch = searchParams.get('search') ?? '';
+    setSearchQuery(querySearch);
+  }, [searchParams]);
+
+  const dashboardFilter = searchParams.get('filter');
+  const dashboardFilterLabel = useMemo(() => {
+    switch (dashboardFilter) {
+      case 'all':
+        return 'Total Contracts';
+      case 'active':
+        return 'Active Contracts';
+      case 'expiring-soon':
+        return 'Expiring Soon';
+      case 'expired':
+        return 'Expired Contracts';
+      default:
+        return null;
+    }
+  }, [dashboardFilter]);
+
+  const departmentOptions = useMemo(
+    () => Array.from(new Set(contracts.map((contract) => contract.departmentName).filter(Boolean))).sort(),
+    [contracts]
   );
+
+  const categoryOptions = useMemo(
+    () => Array.from(new Set(contracts.map((contract) => contract.category).filter(Boolean))).sort(),
+    [contracts]
+  );
+
+  const filteredContracts = useMemo(() => {
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+    const normalizedSearchCompact = normalizedSearch.replace(/[^a-z0-9]/g, '');
+    const today = new Date();
+    const expiringWindow = addDays(today, 30);
+
+    return contracts.filter((contract) => {
+      const formattedValue = formatCurrency(contract.value).toLowerCase();
+      const formattedValueCompact = formattedValue.replace(/[^a-z0-9]/g, '');
+      const formattedDuration = formatContractDateRange(contract.startDate, contract.endDate).toLowerCase();
+      const formattedDurationCompact = formattedDuration.replace(/[^a-z0-9]/g, '');
+      const normalizedStatus = contract.status.toLowerCase();
+      const normalizedStatusCompact = normalizedStatus.replace(/[^a-z0-9]/g, '');
+
+      const matchesSearch =
+        normalizedSearch.length === 0 ||
+        contract.title.toLowerCase().includes(normalizedSearch) ||
+        contract.partyName.toLowerCase().includes(normalizedSearch) ||
+        (contract.departmentName ?? '').toLowerCase().includes(normalizedSearch) ||
+        (contract.contractType ?? '').toLowerCase().includes(normalizedSearch) ||
+        (contract.portfolio ?? '').toLowerCase().includes(normalizedSearch) ||
+        contract.category.toLowerCase().includes(normalizedSearch) ||
+        normalizedStatus.includes(normalizedSearch) ||
+        normalizedStatusCompact.includes(normalizedSearchCompact) ||
+        formattedValue.includes(normalizedSearch) ||
+        formattedValueCompact.includes(normalizedSearchCompact) ||
+        formattedDuration.includes(normalizedSearch) ||
+        formattedDurationCompact.includes(normalizedSearchCompact);
+
+      if (!matchesSearch) {
+        return false;
+      }
+
+      if (statusFilter && contract.status !== statusFilter) {
+        return false;
+      }
+
+      if (departmentFilter && (contract.departmentName ?? '') !== departmentFilter) {
+        return false;
+      }
+
+      if (categoryFilter && contract.category !== categoryFilter) {
+        return false;
+      }
+
+      if (durationFilter) {
+        const durationLabel = formatContractDateRange(contract.startDate, contract.endDate).toLowerCase();
+
+        if (durationFilter === 'open-ended' && contract.endDate) {
+          return false;
+        }
+
+        if (durationFilter === 'has-end-date' && !contract.endDate) {
+          return false;
+        }
+
+        if (durationFilter === 'current-year' && !durationLabel.includes(String(today.getFullYear()))) {
+          return false;
+        }
+      }
+
+      switch (dashboardFilter) {
+        case 'all':
+          return true;
+        case 'active':
+          return contract.status === 'Active';
+        case 'expiring-soon': {
+          if (!contract.endDate) return false;
+          const endDate = parseISO(contract.endDate);
+          return isValid(endDate) && endDate >= today && endDate <= expiringWindow;
+        }
+        case 'expired':
+          return contract.status === 'Expired';
+        default:
+          return true;
+      }
+    });
+  }, [categoryFilter, contracts, dashboardFilter, departmentFilter, durationFilter, searchQuery, statusFilter]);
 
   const closeMenu = useCallback(() => {
     setActiveMenu(null);
@@ -358,6 +471,18 @@ export function ContractList() {
     }
   };
 
+  const handleApprove = async (contract: Contract) => {
+    try {
+      const updated = await approveContract(contract.id);
+      setContracts((prev) => prev.map((item) => (item.id === contract.id ? updated : item)));
+      showToast(`Contract ${contract.title} approved successfully.`, 'success');
+    } catch {
+      showToast('Unable to approve contract right now.', 'error');
+    } finally {
+      closeMenu();
+    }
+  };
+
   const handleMenuToggle = (id: string, event: React.MouseEvent<HTMLButtonElement>) => {
     if (activeMenu === id) {
       closeMenu();
@@ -409,12 +534,20 @@ export function ContractList() {
           : 'No contracts yet. Create one to get started.'
         : null;
 
+  const hasActiveFilters = Boolean(
+    statusFilter || departmentFilter || categoryFilter || durationFilter || dashboardFilterLabel
+  );
+
   return (
     <div className="p-4 sm:p-8 space-y-6 animate-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Contracts Repository</h2>
-          <p className="text-slate-500 text-sm">Manage and track all organizational legal documents.</p>
+          <p className="text-slate-500 text-sm">
+            {dashboardFilterLabel
+              ? `Showing ${dashboardFilterLabel.toLowerCase()} from the dashboard summary.`
+              : 'Manage and track all organizational legal documents.'}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <input
@@ -440,11 +573,11 @@ export function ContractList() {
             {isImporting ? 'Importing...' : 'Import'}
           </button>
           <button 
-            onClick={() => showToast('Filters applied')}
+            onClick={() => setIsFilterOpen((prev) => !prev)}
             className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
           >
             <Filter size={16} />
-            Filters
+            {isFilterOpen ? 'Hide Filters' : 'Filters'}
           </button>
           <button 
             onClick={handleExport}
@@ -458,6 +591,122 @@ export function ContractList() {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible relative">
+        {isFilterOpen && (
+          <div className="px-4 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Status</label>
+                <select
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 outline-none"
+                >
+                  <option value="">All statuses</option>
+                  <option value="Active">Active</option>
+                  <option value="Pending Approval">Pending Approval</option>
+                  <option value="Draft">Draft</option>
+                  <option value="Expired">Expired</option>
+                  <option value="Terminated">Terminated</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Department</label>
+                <select
+                  value={departmentFilter}
+                  onChange={(event) => setDepartmentFilter(event.target.value)}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 outline-none"
+                >
+                  <option value="">All departments</option>
+                  {departmentOptions.map((department) => (
+                    <option key={department} value={department}>
+                      {department}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Category</label>
+                <select
+                  value={categoryFilter}
+                  onChange={(event) => setCategoryFilter(event.target.value)}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 outline-none"
+                >
+                  <option value="">All categories</option>
+                  {categoryOptions.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</label>
+                <select
+                  value={durationFilter}
+                  onChange={(event) => setDurationFilter(event.target.value)}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 outline-none"
+                >
+                  <option value="">All durations</option>
+                  <option value="has-end-date">Has end date</option>
+                  <option value="open-ended">Open-ended</option>
+                  <option value="current-year">Matches current year</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">
+                Filter by workflow status, department, category, and duration shape.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter('');
+                  setDepartmentFilter('');
+                  setCategoryFilter('');
+                  setDurationFilter('');
+                }}
+                className="text-xs font-bold text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                disabled={!statusFilter && !departmentFilter && !categoryFilter && !durationFilter}
+              >
+                Clear filters
+              </button>
+            </div>
+          </div>
+        )}
+        {dashboardFilterLabel && (
+          <div className="px-4 sm:px-6 py-3 border-b border-slate-100 bg-blue-50/60 flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-blue-900">
+              Filter: {dashboardFilterLabel}
+            </p>
+            <button
+              onClick={() => {
+                const nextParams = new URLSearchParams(searchParams);
+                nextParams.delete('filter');
+                setSearchParams(nextParams);
+              }}
+              className="text-xs font-bold text-blue-600 hover:text-blue-700"
+            >
+              Clear filter
+            </button>
+          </div>
+        )}
+        {dashboardFilter === 'expired' && (
+          <div className="px-4 sm:px-6 py-4 border-b border-slate-100 bg-amber-50/70 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-900">Archive cleanup recommended</p>
+              <p className="text-xs text-amber-800 mt-1">
+                Review expired contracts and archive records that no longer need active tracking.
+              </p>
+            </div>
+            <button
+              onClick={() => showToast('Archive cleanup workflow can be added next.', 'success')}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-amber-200 bg-white text-sm font-semibold text-amber-900 hover:bg-amber-100 transition-colors"
+            >
+              <Archive size={16} />
+              Archive Cleanup
+            </button>
+          </div>
+        )}
         <div className="p-4 border-b border-slate-100">
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -466,6 +715,15 @@ export function ContractList() {
               placeholder="Search contracts, parties..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onBlur={() => {
+                const nextParams = new URLSearchParams(searchParams);
+                if (searchQuery.trim()) {
+                  nextParams.set('search', searchQuery.trim());
+                } else {
+                  nextParams.delete('search');
+                }
+                setSearchParams(nextParams);
+              }}
               className="w-full pl-10 pr-4 py-2 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-600/20 transition-all"
             />
           </div>
@@ -600,7 +858,10 @@ export function ContractList() {
           </table>
         </div>
         <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/30 flex items-center justify-between">
-          <p className="text-xs text-slate-500 font-medium">Showing {filteredContracts.length} of {contracts.length} contracts</p>
+          <p className="text-xs text-slate-500 font-medium">
+            Showing {filteredContracts.length} of {contracts.length} contracts
+            {hasActiveFilters ? ' with filters applied' : ''}
+          </p>
           <div className="flex gap-2">
             <button 
               onClick={() => showToast('Already on first page')}
@@ -635,6 +896,14 @@ export function ContractList() {
                 }} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left">
                   <Edit2 size={16} /> Edit Contract
                 </button>
+                {userCanAuthorise && activeContract.status === 'Pending Approval' && (
+                  <button
+                    onClick={() => handleApprove(activeContract)}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50 transition-colors text-left"
+                  >
+                    <CheckCircle2 size={16} /> Approve Contract
+                  </button>
+                )}
                 <div className="h-px bg-slate-100 my-1" />
                 <button onClick={() => handleDelete(activeContract.id)} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors text-left">
                   <Trash2 size={16} /> Delete

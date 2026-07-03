@@ -29,6 +29,7 @@ Artisan::command('contracts:send-notifications', function () {
         ->all();
 
     $contracts = Contract::query()
+        ->with('assignedUser')
         ->whereNotNull('end_date')
         ->whereDate('end_date', '>=', $today)
         ->whereNotIn('status', ['Expired', 'Terminated'])
@@ -49,6 +50,7 @@ Artisan::command('contracts:send-notifications', function () {
             ->filter()
             ->values()
             ->all();
+        $assignedEmail = trim((string) ($contract->assignedUser?->email ?? ''));
 
         if ($daysUntil < 0) {
             continue;
@@ -73,6 +75,9 @@ Artisan::command('contracts:send-notifications', function () {
             }
             if ($type === 'Email') {
                 $channelRecipients = array_merge($channelRecipients, $contractNotificationEmails);
+                if ($assignedEmail !== '') {
+                    $channelRecipients[] = $assignedEmail;
+                }
             }
             if (in_array($type, ['SMS', 'WhatsApp'], true)) {
                 $channelRecipients = array_merge($channelRecipients, $contractNotificationPhones);

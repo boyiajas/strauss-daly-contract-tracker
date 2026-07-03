@@ -20,12 +20,14 @@ import { useToast } from '../App';
 
 const roleIcons: any = {
   'Admin': ShieldAlert,
+  'Authoriser': ShieldCheck,
   'Manager': ShieldCheck,
   'Viewer': Shield,
 };
 
 const roleColors: any = {
   'Admin': 'text-red-600 bg-red-50',
+  'Authoriser': 'text-amber-700 bg-amber-50',
   'Manager': 'text-blue-600 bg-blue-50',
   'Viewer': 'text-slate-600 bg-slate-50',
 };

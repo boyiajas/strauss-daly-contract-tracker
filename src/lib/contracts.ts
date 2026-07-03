@@ -1,9 +1,27 @@
-import { Contract, Department } from '../types';
+import { Client, Contract, ContractDocument, Department } from '../types';
 
 type ContractApi = {
   id: number;
   title: string;
   party_name: string;
+  client_id?: number | null;
+  client?: {
+    id: number;
+    title?: string | null;
+    name: string;
+    address?: string | null;
+    contacts?: Array<{
+      name: string;
+      email?: string | null;
+      phone?: string | null;
+    }> | null;
+  } | null;
+  assigned_user_id?: number | null;
+  assigned_user?: {
+    id: number;
+    name: string;
+    email?: string | null;
+  } | null;
   department_id?: number | null;
   contract_type?: string | null;
   portfolio?: string | null;
@@ -24,7 +42,12 @@ type ContractApi = {
   notification_emails?: string[] | null;
   notification_phones?: string[] | null;
   notification_days?: number[] | null;
+  documents?: Array<{
+    name: string;
+    path: string;
+  }> | null;
   file_name?: string | null;
+  file_path?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -68,10 +91,39 @@ export const mapContractFromApi = (contract: ContractApi): Contract => {
     contract.notification_phone
   );
 
+  const documents: ContractDocument[] = Array.isArray(contract.documents) && contract.documents.length > 0
+    ? contract.documents
+        .filter((document): document is { name: string; path: string } =>
+          Boolean(document?.name) && Boolean(document?.path)
+        )
+        .map((document) => ({ name: document.name, path: document.path }))
+    : contract.file_name && contract.file_path
+      ? [{ name: contract.file_name, path: contract.file_path }]
+      : [];
+  const client: Client | undefined = contract.client
+    ? {
+        id: String(contract.client.id),
+        title: contract.client.title ?? undefined,
+        name: contract.client.name,
+        address: contract.client.address ?? undefined,
+        contacts: (contract.client.contacts ?? []).map((contact) => ({
+          name: contact.name,
+          email: contact.email ?? undefined,
+          phone: contact.phone ?? undefined,
+        })),
+      }
+    : undefined;
+
   return {
     id: String(contract.id),
     title: contract.title,
     partyName: contract.party_name,
+    clientId: contract.client_id ? String(contract.client_id) : undefined,
+    clientName: contract.client?.name ?? contract.party_name,
+    client,
+    assignedToUserId: contract.assigned_user_id ? String(contract.assigned_user_id) : undefined,
+    assignedToUserName: contract.assigned_user?.name ?? undefined,
+    assignedToUserEmail: contract.assigned_user?.email ?? undefined,
     departmentId: contract.department_id ? String(contract.department_id) : undefined,
     departmentName: contract.department?.name ?? undefined,
     contractType: contract.contract_type ?? undefined,
@@ -90,7 +142,9 @@ export const mapContractFromApi = (contract: ContractApi): Contract => {
     notificationEmails,
     notificationPhones,
     notificationDays: contract.notification_days ?? undefined,
+    documents,
     fileName: contract.file_name ?? undefined,
+    filePath: contract.file_path ?? undefined,
   };
 };
 
@@ -107,6 +161,8 @@ export const mapContractToApi = (contract: Partial<Contract>) => {
   return {
     title: contract.title ?? '',
     party_name: contract.partyName ?? '',
+    client_id: contract.clientId ? Number(contract.clientId) : null,
+    assigned_user_id: contract.assignedToUserId ? Number(contract.assignedToUserId) : null,
     department_id: contract.departmentId ? Number(contract.departmentId) : null,
     contract_type: contract.contractType ?? '',
     portfolio: contract.portfolio ?? '',
@@ -123,8 +179,48 @@ export const mapContractToApi = (contract: Partial<Contract>) => {
     notification_emails: notificationEmails,
     notification_phones: notificationPhones,
     notification_days: contract.notificationDays ?? [],
+    removed_documents: [],
     file_name: contract.fileName ?? null,
   };
+};
+
+const appendFormValue = (formData: FormData, key: string, value: unknown) => {
+  if (value === null || value === undefined || value === '') {
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => appendFormValue(formData, `${key}[]`, item));
+    return;
+  }
+
+  formData.append(key, String(value));
+};
+
+const buildContractFormData = (
+  contract: Partial<Contract>,
+  files?: File[] | null,
+  method?: 'PATCH',
+  removedDocuments?: string[]
+) => {
+  const payload = mapContractToApi(contract);
+  const formData = new FormData();
+
+  if (method) {
+    formData.append('_method', method);
+  }
+
+  Object.entries(payload).forEach(([key, value]) => appendFormValue(formData, key, value));
+
+  if (removedDocuments?.length) {
+    removedDocuments.forEach((path) => formData.append('removed_documents[]', path));
+  }
+
+  if (files?.length) {
+    files.forEach((file) => formData.append('contract_files[]', file));
+  }
+
+  return formData;
 };
 
 export type ImportedContractRow = {
@@ -334,14 +430,17 @@ export const fetchContract = async (id: string) => {
   return mapContractFromApi(data);
 };
 
-export const createContract = async (contract: Partial<Contract>) => {
+export const createContract = async (
+  contract: Partial<Contract>,
+  files?: File[] | null,
+  removedDocuments: string[] = []
+) => {
   const response = await fetch('/api/contracts', {
     method: 'POST',
     headers: {
       Accept: 'application/json',
-      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(mapContractToApi(contract)),
+    body: buildContractFormData(contract, files, undefined, removedDocuments),
   });
 
   if (!response.ok) {
@@ -354,20 +453,41 @@ export const createContract = async (contract: Partial<Contract>) => {
   return mapContractFromApi(data);
 };
 
-export const updateContract = async (id: string, contract: Partial<Contract>) => {
+export const updateContract = async (
+  id: string,
+  contract: Partial<Contract>,
+  files?: File[] | null,
+  removedDocuments: string[] = []
+) => {
   const response = await fetch(`/api/contracts/${id}`, {
-    method: 'PATCH',
+    method: 'POST',
     headers: {
       Accept: 'application/json',
-      'Content-Type': 'application/json',
     },
-    body: JSON.stringify(mapContractToApi(contract)),
+    body: buildContractFormData(contract, files, 'PATCH', removedDocuments),
   });
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
     const message = payload?.message || 'Unable to update contract.';
     throw new Error(message);
+  }
+
+  const data = (await response.json()) as ContractApi;
+  return mapContractFromApi(data);
+};
+
+export const approveContract = async (id: string) => {
+  const response = await fetch(`/api/contracts/${id}/approve`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.message || 'Unable to approve contract.');
   }
 
   const data = (await response.json()) as ContractApi;

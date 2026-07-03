@@ -28,7 +28,7 @@ class UserController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'role' => ['nullable', 'string', 'max:50'],
+            'role' => ['nullable', 'string', 'in:Admin,Authoriser,Manager,Viewer'],
             'department' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'string', 'max:50'],
         ]);
@@ -56,7 +56,7 @@ class UserController extends Controller
         $data = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'email' => ['sometimes', 'email', 'max:255', 'unique:users,email,'.$user->id],
-            'role' => ['sometimes', 'string', 'max:50'],
+            'role' => ['sometimes', 'string', 'in:Admin,Authoriser,Manager,Viewer'],
             'department' => ['sometimes', 'string', 'max:255'],
             'status' => ['sometimes', 'string', 'max:50'],
         ]);

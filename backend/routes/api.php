@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ContractController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\NotificationLogController;
@@ -20,8 +21,15 @@ Route::get('/health', function (Request $request) {
 Route::get('/contracts', [ContractController::class, 'index']);
 Route::post('/contracts', [ContractController::class, 'store']);
 Route::get('/contracts/{contract}', [ContractController::class, 'show']);
+Route::get('/contracts/{contract}/document', [ContractController::class, 'document']);
 Route::patch('/contracts/{contract}', [ContractController::class, 'update']);
+Route::post('/contracts/{contract}/approve', [ContractController::class, 'approve']);
 Route::delete('/contracts/{contract}', [ContractController::class, 'destroy']);
+
+Route::get('/clients', [ClientController::class, 'index']);
+Route::post('/clients', [ClientController::class, 'store']);
+Route::patch('/clients/{client}', [ClientController::class, 'update']);
+Route::delete('/clients/{client}', [ClientController::class, 'destroy']);
 
 Route::get('/departments', [DepartmentController::class, 'index']);
 Route::post('/departments', [DepartmentController::class, 'store']);

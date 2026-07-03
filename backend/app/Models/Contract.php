@@ -9,6 +9,8 @@ class Contract extends Model
     protected $fillable = [
         'title',
         'party_name',
+        'client_id',
+        'assigned_user_id',
         'department_id',
         'contract_type',
         'portfolio',
@@ -25,7 +27,9 @@ class Contract extends Model
         'notification_emails',
         'notification_phones',
         'notification_days',
+        'documents',
         'file_name',
+        'file_path',
     ];
 
     protected $casts = [
@@ -37,10 +41,21 @@ class Contract extends Model
         'notification_emails' => 'array',
         'notification_phones' => 'array',
         'notification_days' => 'array',
+        'documents' => 'array',
     ];
 
     public function department()
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function client()
+    {
+        return $this->belongsTo(Client::class);
+    }
+
+    public function assignedUser()
+    {
+        return $this->belongsTo(User::class, 'assigned_user_id');
     }
 }

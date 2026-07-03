@@ -1,0 +1,652 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Calibri;}}
+\fs22
+\b\fs28 Strauss Daly Contract Management System Security Overview\b0\fs22\par
+\par
+Document date: 2026-06-25  \par
+Application: Strauss Daly Contract Management System  \par
+Repository reviewed: `/var/www/React_Projects/strauss-daly-contract-tracker`\par
+\par
+\b\fs24 1. Document Intent\b0\fs22\par
+\par
+This document describes the Strauss Daly Contract Management System as it is currently implemented in the reviewed codebase. It is written to support infrastructure and cybersecurity reporting and should be read as a current-state application security overview.\par
+\par
+This document is structured into:\par
+\par
+\tab\bullet\tab application description\par
+\tab\bullet\tab features currently implemented in the system\par
+\tab\bullet\tab security controls currently present in the system\par
+\tab\bullet\tab current security limitations and risks\par
+\tab\bullet\tab recommendations\par
+\tab\bullet\tab suggested future security feature implementations\par
+\par
+\b\fs24 2. Application Description\b0\fs22\par
+\par
+The Strauss Daly Contract Management System is an internal web-based contract administration platform used to manage contract records and supporting administrative data.\par
+\par
+The system currently supports:\par
+\par
+\tab\bullet\tab contract listing, creation, editing, viewing, deletion, import, and export\par
+\tab\bullet\tab contract metadata management including:\par
+\tab\bullet\tab title\par
+\tab\bullet\tab counterparty\par
+\tab\bullet\tab department\par
+\tab\bullet\tab contract type\par
+\tab\bullet\tab category\par
+\tab\bullet\tab portfolio\par
+\tab\bullet\tab start date\par
+\tab\bullet\tab review date\par
+\tab\bullet\tab end date\par
+\tab\bullet\tab value\par
+\tab\bullet\tab tags\par
+\tab\bullet\tab description\par
+\tab\bullet\tab contract notification configuration including:\par
+\tab\bullet\tab configurable alert deadlines\par
+\tab\bullet\tab multiple notification emails per contract\par
+\tab\bullet\tab multiple notification phone numbers per contract\par
+\tab\bullet\tab user management\par
+\tab\bullet\tab department management\par
+\tab\bullet\tab notification center configuration\par
+\tab\bullet\tab notification log viewing\par
+\tab\bullet\tab audit log visibility\par
+\tab\bullet\tab system settings management\par
+\par
+\b\fs24 3. Technology Overview\b0\fs22\par
+\par
+\b Frontend\b0\par
+\par
+\tab\bullet\tab React 19\par
+\tab\bullet\tab TypeScript\par
+\tab\bullet\tab Vite\par
+\tab\bullet\tab React Router\par
+\tab\bullet\tab `xlsx` library for Excel import/export\par
+\par
+\b Backend\b0\par
+\par
+\tab\bullet\tab Laravel 13\par
+\tab\bullet\tab PHP 8.3\par
+\tab\bullet\tab SQLite by default in development\par
+\par
+\b Deployment Model\b0\par
+\par
+The application supports:\par
+\par
+\tab\bullet\tab React frontend served through Vite during development\par
+\tab\bullet\tab React frontend built into `backend/public/` and served by Laravel in integrated deployments\par
+\par
+\b\fs24 4. Features Currently Implemented\b0\fs22\par
+\par
+\b 4.1 Contract Management\b0\par
+\par
+The current contract module includes:\par
+\par
+\tab\bullet\tab contract repository list\par
+\tab\bullet\tab clickable contract rows opening a detailed contract view\par
+\tab\bullet\tab contract detail page\par
+\tab\bullet\tab create contract form\par
+\tab\bullet\tab edit contract form\par
+\tab\bullet\tab delete contract action\par
+\tab\bullet\tab support for optional `Review Date`\par
+\tab\bullet\tab support for optional `End Date`\par
+\tab\bullet\tab support for multiple per-contract notification emails\par
+\tab\bullet\tab support for multiple per-contract notification phones\par
+\tab\bullet\tab support for dynamic alert deadline values\par
+\par
+\b 4.2 Contract Excel Export and Import\b0\par
+\par
+The current system can export contract data to Excel and import the same structure back into the system.\par
+\par
+The export/import currently includes:\par
+\par
+\tab\bullet\tab `Contract ID`\par
+\tab\bullet\tab `Contract Title`\par
+\tab\bullet\tab `Counterparty`\par
+\tab\bullet\tab `Department`\par
+\tab\bullet\tab `Type`\par
+\tab\bullet\tab `Category`\par
+\tab\bullet\tab `Portfolio`\par
+\tab\bullet\tab `Status`\par
+\tab\bullet\tab `Start Date`\par
+\tab\bullet\tab `Review Date`\par
+\tab\bullet\tab `End Date`\par
+\tab\bullet\tab `Duration`\par
+\tab\bullet\tab `Value`\par
+\tab\bullet\tab `Description`\par
+\tab\bullet\tab `Tags`\par
+\tab\bullet\tab alert deadline columns\par
+\tab\bullet\tab contract-level notification email columns\par
+\tab\bullet\tab contract-level notification phone columns\par
+\tab\bullet\tab global notification recipient columns\par
+\par
+The import process currently:\par
+\par
+\tab\bullet\tab validates required data\par
+\tab\bullet\tab maps department names to existing system departments\par
+\tab\bullet\tab prevents obvious duplicates using `Contract Title + Counterparty`\par
+\tab\bullet\tab uses `Contract ID` as a fallback identifier\par
+\par
+\b 4.3 Notifications\b0\par
+\par
+The current notification module includes:\par
+\par
+\tab\bullet\tab system-level channel toggles for Email, SMS, and WhatsApp\par
+\tab\bullet\tab default recipient management\par
+\tab\bullet\tab notification history viewing\par
+\tab\bullet\tab test notification logging\par
+\tab\bullet\tab scheduled expiry reminder logic\par
+\par
+\b 4.4 User Management\b0\par
+\par
+The current user module includes:\par
+\par
+\tab\bullet\tab user list\par
+\tab\bullet\tab user create flow\par
+\tab\bullet\tab user edit flow\par
+\tab\bullet\tab user activate / deactivate\par
+\tab\bullet\tab user delete flow\par
+\par
+Important current-state note:\par
+\par
+\tab\bullet\tab the operational UI for creating users does not currently collect a password field\par
+\tab\bullet\tab the backend creates a password automatically if one is not supplied\par
+\par
+\b 4.5 Settings and Audit\b0\par
+\par
+The current system includes:\par
+\par
+\tab\bullet\tab system settings page\par
+\tab\bullet\tab category management\par
+\tab\bullet\tab basic security-related toggles in UI\par
+\tab\bullet\tab audit log viewing\par
+\par
+\b\fs24 5. Security Controls Currently Present In The System\b0\fs22\par
+\par
+This section describes controls that are currently implemented and observable in the reviewed code.\par
+\par
+\b 5.1 Backend Input Validation\b0\par
+\par
+Laravel validation is currently used for multiple API endpoints.\par
+\par
+Observed validation coverage includes:\par
+\par
+\tab\bullet\tab required field enforcement\par
+\tab\bullet\tab type validation\par
+\tab\bullet\tab email validation\par
+\tab\bullet\tab max length checks\par
+\tab\bullet\tab numeric minimums\par
+\tab\bullet\tab array validation\par
+\tab\bullet\tab allowed enum-style values in some areas\par
+\tab\bullet\tab foreign key existence checks such as `department_id`\par
+\par
+This currently helps protect business-data integrity and reduces malformed input acceptance.\par
+\par
+\b 5.2 Password Hashing For Backend-Stored Users\b0\par
+\par
+The Laravel `User` model currently uses Laravel’s password hashing cast.\par
+\par
+Current effect:\par
+\par
+\tab\bullet\tab stored passwords are not persisted in plaintext\par
+\tab\bullet\tab backend user password storage benefits from Laravel hashing behavior\par
+\par
+\b 5.3 Sensitive User Field Hiding\b0\par
+\par
+The following user fields are currently hidden from serialized output:\par
+\par
+\tab\bullet\tab `password`\par
+\tab\bullet\tab `remember_token`\par
+\par
+This helps reduce accidental disclosure in standard JSON responses.\par
+\par
+\b 5.4 Application Encryption Capability\b0\par
+\par
+Laravel application encryption is configured with:\par
+\par
+\tab\bullet\tab cipher: `AES-256-CBC`\par
+\tab\bullet\tab key source: `APP_KEY`\par
+\par
+This confirms that Laravel’s built-in encryption services are available in the application stack.\par
+\par
+Important clarification:\par
+\par
+\tab\bullet\tab this does not mean all contract or user business data is currently encrypted field-by-field\par
+\tab\bullet\tab it confirms the framework encryption capability is configured\par
+\par
+\b 5.5 CORS Restriction\b0\par
+\par
+The backend CORS configuration is restricted to the configured frontend origin rather than allowing unrestricted origins.\par
+\par
+Current control:\par
+\par
+\tab\bullet\tab `allowed_origins` is based on `FRONTEND_URL`\par
+\par
+This is a positive browser-facing control for same-application integration.\par
+\par
+\b 5.6 Audit Logging\b0\par
+\par
+The system currently records audit entries for key administrative actions, including:\par
+\par
+\tab\bullet\tab contract creation\par
+\tab\bullet\tab contract updates\par
+\tab\bullet\tab contract deletion\par
+\tab\bullet\tab user creation\par
+\tab\bullet\tab user updates\par
+\tab\bullet\tab user deletion\par
+\tab\bullet\tab notification settings updates\par
+\tab\bullet\tab test notification activity\par
+\tab\bullet\tab scheduled contract notification sends\par
+\par
+This supports accountability, troubleshooting, and post-event review.\par
+\par
+\b 5.7 Notification De-Duplication\b0\par
+\par
+The scheduled notification process currently prevents duplicate logs for the same:\par
+\par
+\tab\bullet\tab contract\par
+\tab\bullet\tab trigger day\par
+\tab\bullet\tab notification type\par
+\tab\bullet\tab recipient\par
+\par
+This reduces repeat-message noise caused by repeated scheduled execution.\par
+\par
+\b 5.8 Contract Data Integrity Alignment\b0\par
+\par
+The frontend and backend currently align on important contract fields including:\par
+\par
+\tab\bullet\tab start date\par
+\tab\bullet\tab review date\par
+\tab\bullet\tab optional end date\par
+\tab\bullet\tab dynamic notification day windows\par
+\tab\bullet\tab multi-email notifications\par
+\tab\bullet\tab multi-phone notifications\par
+\par
+This is relevant from a security and operational perspective because it reduces silent data loss and inconsistent state.\par
+\par
+\b 5.9 Excel Import Validation Controls\b0\par
+\par
+The contract Excel import flow currently includes:\par
+\par
+\tab\bullet\tab row parsing and normalization\par
+\tab\bullet\tab required-field checks\par
+\tab\bullet\tab department name matching\par
+\tab\bullet\tab duplicate-reduction logic\par
+\tab\bullet\tab row-level import error handling\par
+\par
+This helps reduce accidental bad data ingestion.\par
+\par
+\b\fs24 6. Security Measures Present But Limited In Scope\b0\fs22\par
+\par
+The following items exist in some form, but should not be overstated as mature security controls.\par
+\par
+\b 6.1 UI-Level Role Handling\b0\par
+\par
+The frontend carries role information such as:\par
+\par
+\tab\bullet\tab Admin\par
+\tab\bullet\tab Manager\par
+\tab\bullet\tab Viewer\par
+\par
+However:\par
+\par
+\tab\bullet\tab this is currently primarily a UI behavior concern\par
+\tab\bullet\tab it is not a substitute for backend authorization enforcement\par
+\par
+\b 6.2 Two-Factor Authentication Toggle In Settings\b0\par
+\par
+The settings UI includes a two-factor authentication toggle.\par
+\par
+However:\par
+\par
+\tab\bullet\tab there is no reviewed end-to-end MFA implementation\par
+\tab\bullet\tab the presence of the toggle should not be described as deployed MFA\par
+\par
+\b 6.3 Session Timeout Toggle In Settings\b0\par
+\par
+The settings UI includes a session timeout toggle.\par
+\par
+However:\par
+\par
+\tab\bullet\tab no end-to-end enforced session timeout behavior was confirmed in the reviewed authentication flow\par
+\par
+\b\fs24 7. Current Security Limitations And Risks\b0\fs22\par
+\par
+This section documents what is currently missing or weak in the present implementation.\par
+\par
+\b 7.1 Authentication Is Currently Mock / Demo Style\b0\par
+\par
+The login flow currently:\par
+\par
+\tab\bullet\tab uses hardcoded sample users in the frontend\par
+\tab\bullet\tab uses a shared demonstration password `password123`\par
+\tab\bullet\tab stores login state in `localStorage`\par
+\tab\bullet\tab does not validate credentials against the Laravel backend\par
+\par
+Current implication:\par
+\par
+\tab\bullet\tab authentication is not currently a strong security boundary\par
+\par
+\b 7.2 API Authorization Is Not Clearly Enforced\b0\par
+\par
+The reviewed API routes do not show visible authentication or role middleware for business endpoints.\par
+\par
+Current implication:\par
+\par
+\tab\bullet\tab backend access control is not clearly enforced at route level\par
+\tab\bullet\tab UI role restrictions should not be treated as true security enforcement\par
+\par
+\b 7.3 Password Creation Requirements Are Not Enforced\b0\par
+\par
+Current-state password concerns:\par
+\par
+\tab\bullet\tab the mock login uses a weak shared sample password\par
+\tab\bullet\tab the mock register page accepts any non-empty password\par
+\tab\bullet\tab the operational new-user admin flow does not collect a password from the UI\par
+\tab\bullet\tab the backend may generate a random password if one is omitted\par
+\tab\bullet\tab no explicit policy was found for:\par
+\tab\bullet\tab minimum length\par
+\tab\bullet\tab complexity\par
+\tab\bullet\tab rotation\par
+\tab\bullet\tab history\par
+\tab\bullet\tab breach checking\par
+\tab\bullet\tab forced first-use change\par
+\par
+\b 7.4 No Proven MFA Implementation\b0\par
+\par
+Although the UI includes a two-factor toggle:\par
+\par
+\tab\bullet\tab no backend MFA challenge flow was identified\par
+\tab\bullet\tab no enrollment, recovery, or enforcement workflow was found\par
+\par
+\b 7.5 No Explicit Sensitive Route Throttling Observed\b0\par
+\par
+The reviewed application code does not currently demonstrate explicit throttling on:\par
+\par
+\tab\bullet\tab login attempts\par
+\tab\bullet\tab test notification actions\par
+\tab\bullet\tab import actions\par
+\tab\bullet\tab administrative changes\par
+\par
+\b 7.6 No Explicit Browser Security Header Hardening Observed\b0\par
+\par
+No custom implementation was found for:\par
+\par
+\tab\bullet\tab `Content-Security-Policy`\par
+\tab\bullet\tab `X-Frame-Options` or equivalent framing restriction\par
+\tab\bullet\tab `X-Content-Type-Options`\par
+\tab\bullet\tab `Referrer-Policy`\par
+\tab\bullet\tab `Strict-Transport-Security`\par
+\par
+\b 7.7 HTTPS Enforcement Not Evident In App Code\b0\par
+\par
+The reviewed code does not explicitly enforce HTTPS.\par
+\par
+Current implication:\par
+\par
+\tab\bullet\tab secure transport depends on external hosting / reverse proxy / web-server configuration\par
+\par
+\b 7.8 Contract File Upload Security Not Yet Implemented\b0\par
+\par
+The UI currently exposes a contract document upload interaction, but no fully implemented secure server-side upload flow was identified.\par
+\par
+Missing current controls include:\par
+\par
+\tab\bullet\tab server-side MIME validation\par
+\tab\bullet\tab content scanning\par
+\tab\bullet\tab private storage handling\par
+\tab\bullet\tab access-controlled retrieval\par
+\tab\bullet\tab upload audit trail\par
+\par
+\b 7.9 No Field-Level Encryption Of Business Data Observed\b0\par
+\par
+The reviewed app code does not currently show field-level encryption for:\par
+\par
+\tab\bullet\tab contract descriptions\par
+\tab\bullet\tab counterparties\par
+\tab\bullet\tab notification recipients\par
+\tab\bullet\tab file references\par
+\par
+This means application-layer data protection is limited mainly to standard database persistence and framework capability rather than explicit data-at-rest encryption logic.\par
+\par
+\b 7.10 Notification Delivery Security Is Limited\b0\par
+\par
+The system currently tracks notification settings and logs, but the reviewed code does not demonstrate a complete hardened provider integration for real outbound:\par
+\par
+\tab\bullet\tab email\par
+\tab\bullet\tab SMS\par
+\tab\bullet\tab WhatsApp\par
+\par
+\b 7.11 Audit Log Protection Could Be Stronger\b0\par
+\par
+Audit logging exists, but the reviewed implementation does not show:\par
+\par
+\tab\bullet\tab immutable logging\par
+\tab\bullet\tab tamper evidence\par
+\tab\bullet\tab central SIEM forwarding\par
+\tab\bullet\tab retention controls\par
+\tab\bullet\tab alerting on high-risk events\par
+\par
+\b\fs24 8. Current Password Security Position\b0\fs22\par
+\par
+As of the reviewed implementation, the strongest password-related control currently present is:\par
+\par
+\tab\bullet\tab hashed password storage in Laravel for persisted backend users\par
+\par
+The system does not currently demonstrate enforced password policy for active application sign-in and user lifecycle.\par
+\par
+Therefore, the current system should be described as:\par
+\par
+\tab\bullet\tab having backend password hashing capability\par
+\tab\bullet\tab not yet having mature password governance or password-authentication enforcement\par
+\par
+\b\fs24 9. Current Encryption Position\b0\fs22\par
+\par
+\b Currently Present\b0\par
+\par
+\tab\bullet\tab Laravel encryption capability using `AES-256-CBC`\par
+\tab\bullet\tab hashed password storage\par
+\tab\bullet\tab origin-restricted CORS\par
+\par
+\b Not Currently Evidenced In The Reviewed Code\b0\par
+\par
+\tab\bullet\tab field-level encryption for contract records\par
+\tab\bullet\tab database encryption at rest logic in app layer\par
+\tab\bullet\tab secure encrypted document storage workflow\par
+\tab\bullet\tab explicit HSTS / TLS enforcement in application code\par
+\par
+\b\fs24 10. Current-State Security Posture Summary\b0\fs22\par
+\par
+The Strauss Daly Contract Management System currently has:\par
+\par
+\tab\bullet\tab reasonable business-data validation\par
+\tab\bullet\tab useful audit visibility\par
+\tab\bullet\tab some baseline secure coding practices from Laravel\par
+\tab\bullet\tab password hashing for stored backend user credentials\par
+\par
+The system currently does not yet have:\par
+\par
+\tab\bullet\tab real production-grade authentication\par
+\tab\bullet\tab confirmed backend authorization enforcement\par
+\tab\bullet\tab MFA\par
+\tab\bullet\tab strong password policy enforcement\par
+\tab\bullet\tab hardened file upload controls\par
+\tab\bullet\tab explicit browser security header hardening\par
+\tab\bullet\tab explicit API abuse protection\par
+\par
+Current assessment:\par
+\par
+\tab\bullet\tab appropriate only for controlled internal development or restricted internal usage\par
+\tab\bullet\tab not yet suitable for broader exposure without additional security hardening\par
+\par
+\b\fs24 11. Recommendations\b0\fs22\par
+\par
+The following recommendations are based on the current code state and should be treated as improvement actions, not current features.\par
+\par
+\b 11.1 Authentication And Authorization\b0\par
+\par
+Recommended:\par
+\par
+1. Replace mock login with real Laravel-backed authentication.\par
+2. Implement Sanctum or a comparable session/token strategy.\par
+3. Enforce authentication middleware on all business APIs.\par
+4. Enforce backend RBAC for:\par
+\tab\bullet\tab contract administration\par
+\tab\bullet\tab user management\par
+\tab\bullet\tab settings changes\par
+\tab\bullet\tab notification configuration\par
+\tab\bullet\tab audit visibility\par
+\par
+\b 11.2 Password Security\b0\par
+\par
+Recommended:\par
+\par
+1. Enforce a password policy:\par
+\tab\bullet\tab minimum 12 characters\par
+\tab\bullet\tab uppercase\par
+\tab\bullet\tab lowercase\par
+\tab\bullet\tab numeric\par
+\tab\bullet\tab special character\par
+2. Block common and breached passwords.\par
+3. Require first-login password reset for new users.\par
+4. Add secure password reset flow with expiring tokens.\par
+5. Add account lockout / throttling for failed login attempts.\par
+\par
+\b 11.3 MFA\b0\par
+\par
+Recommended:\par
+\par
+1. Implement real MFA for privileged roles.\par
+2. Add enrollment, recovery, enforcement, and audit trails for MFA.\par
+\par
+\b 11.4 Transport And Browser Security\b0\par
+\par
+Recommended:\par
+\par
+1. Enforce HTTPS in production.\par
+2. Add HSTS.\par
+3. Add:\par
+\tab\bullet\tab CSP\par
+\tab\bullet\tab X-Content-Type-Options\par
+\tab\bullet\tab frame protection\par
+\tab\bullet\tab Referrer-Policy\par
+4. Ensure secure cookie settings if session authentication is introduced.\par
+\par
+\b 11.5 API Hardening\b0\par
+\par
+Recommended:\par
+\par
+1. Add throttling to:\par
+\tab\bullet\tab login\par
+\tab\bullet\tab import\par
+\tab\bullet\tab notification test\par
+\tab\bullet\tab user administration\par
+\tab\bullet\tab settings changes\par
+2. Add stricter production error handling to avoid leaking internal details.\par
+3. Limit CORS strictly to approved production origins.\par
+\par
+\b 11.6 File Upload Security\b0\par
+\par
+Recommended:\par
+\par
+1. Implement backend upload processing.\par
+2. Validate file type and size server-side.\par
+3. Scan uploads for malware.\par
+4. Store files outside the public web root.\par
+5. Use controlled download endpoints or signed URLs.\par
+6. Add upload/download/delete audit entries.\par
+\par
+\b 11.7 Monitoring And Audit Strengthening\b0\par
+\par
+Recommended:\par
+\par
+1. Forward logs to a central monitoring platform or SIEM.\par
+2. Add alerting for privileged changes and suspicious actions.\par
+3. Introduce retention and integrity controls for audit records.\par
+\par
+\b 11.8 Data Protection\b0\par
+\par
+Recommended:\par
+\par
+1. Evaluate encryption at rest for database and backups.\par
+2. Consider field-level encryption for sensitive contract attributes where justified.\par
+3. Protect outbound notification secrets in a secure secret-management process.\par
+\par
+\b\fs24 12. Suggested Future Security Feature Implementations\b0\fs22\par
+\par
+This section describes concrete security capabilities that could be implemented in the system.\par
+\par
+\b 12.1 Identity Features\b0\par
+\par
+\tab\bullet\tab real login against backend users\par
+\tab\bullet\tab password reset workflow\par
+\tab\bullet\tab first-login password change\par
+\tab\bullet\tab MFA enrollment and enforcement\par
+\tab\bullet\tab session timeout enforcement\par
+\tab\bullet\tab privileged admin approval workflows\par
+\par
+\b 12.2 Authorization Features\b0\par
+\par
+\tab\bullet\tab route middleware by role\par
+\tab\bullet\tab contract actions restricted by role\par
+\tab\bullet\tab settings restricted to admin-only\par
+\tab\bullet\tab notification center restricted to approved operators\par
+\tab\bullet\tab audit log access restriction\par
+\par
+\b 12.3 Document Security Features\b0\par
+\par
+\tab\bullet\tab secure contract upload pipeline\par
+\tab\bullet\tab encrypted document storage\par
+\tab\bullet\tab document access logging\par
+\tab\bullet\tab malware scanning\par
+\tab\bullet\tab document versioning and retention controls\par
+\par
+\b 12.4 Monitoring Features\b0\par
+\par
+\tab\bullet\tab SIEM integration\par
+\tab\bullet\tab suspicious login alerts\par
+\tab\bullet\tab bulk import anomaly alerts\par
+\tab\bullet\tab notification abuse alerts\par
+\tab\bullet\tab admin change notifications\par
+\par
+\b 12.5 Data Governance Features\b0\par
+\par
+\tab\bullet\tab record retention rules\par
+\tab\bullet\tab deletion approval flow\par
+\tab\bullet\tab archival workflow\par
+\tab\bullet\tab stronger backup governance\par
+\par
+\b\fs24 13. Recommended Password Standard For This System\b0\fs22\par
+\par
+Recommended target standard:\par
+\par
+\tab\bullet\tab minimum length: `12`\par
+\tab\bullet\tab uppercase, lowercase, numeric, and special character required\par
+\tab\bullet\tab passphrases allowed\par
+\tab\bullet\tab first-login password reset\par
+\tab\bullet\tab breached-password screening\par
+\tab\bullet\tab lockout after repeated failures\par
+\tab\bullet\tab MFA for `Admin` accounts\par
+\par
+\b\fs24 14. Recommended Encryption Standard For This System\b0\fs22\par
+\par
+Recommended target standard:\par
+\par
+\tab\bullet\tab TLS 1.2+ or TLS 1.3\par
+\tab\bullet\tab HSTS enabled in production\par
+\tab\bullet\tab Laravel application key protected securely\par
+\tab\bullet\tab encrypted storage at infrastructure level\par
+\tab\bullet\tab encrypted backups\par
+\tab\bullet\tab encrypted contract documents where applicable\par
+\tab\bullet\tab secrets managed in environment / vault-backed stores\par
+\par
+\b\fs24 15. Short Management Summary\b0\fs22\par
+\par
+Suggested summary for broader reporting:\par
+\par
+> Strauss Daly Contract Management is a React and Laravel-based internal contract administration platform with implemented business-data validation, audit logging, password hashing for backend-stored users, and CORS restriction to the approved frontend origin. The current codebase does not yet demonstrate production-grade authentication, backend authorization enforcement, MFA, hardened document upload controls, browser security headers, or explicit API abuse protections. The next security maturity phase should prioritize real identity and access control, password and MFA enforcement, HTTPS and header hardening, secure file handling, and centralized monitoring.\par
+\par
+\b\fs24 16. Supporting Files\b0\fs22\par
+\par
+This document is intended to reflect the current reviewed state of the codebase on `2026-06-25`.\par
+\par
+If the application’s authentication, authorization, upload handling, encryption, or hosting controls change, this document should be revised accordingly.\par
+}

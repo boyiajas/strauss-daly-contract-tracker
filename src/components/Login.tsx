@@ -9,6 +9,7 @@ interface LoginProps {
 
 const SAMPLE_USERS = [
   { email: 'admin@straussdaly.co.za', password: 'password123', name: 'John Admin', role: 'Admin' },
+  { email: 'authoriser@straussdaly.co.za', password: 'password123', name: 'Paula Authoriser', role: 'Authoriser' },
   { email: 'manager@straussdaly.co.za', password: 'password123', name: 'Sarah Manager', role: 'Manager' },
   { email: 'viewer@straussdaly.co.za', password: 'password123', name: 'Mike Viewer', role: 'Viewer' },
 ];
@@ -123,7 +124,7 @@ export function Login({ onLogin }: LoginProps) {
         {/* Sample Credentials Helper */}
         <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl space-y-3 animate-in fade-in duration-1000 delay-300">
           <p className="text-xs font-bold text-blue-700 uppercase tracking-wider text-center">Sample Credentials (Password: password123)</p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             {SAMPLE_USERS.map(u => (
               <button 
                 key={u.role}

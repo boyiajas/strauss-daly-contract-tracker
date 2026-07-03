@@ -5,6 +5,7 @@ import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { ContractList } from './components/ContractList';
 import { UserList } from './components/UserList';
+import { ClientManagement } from './components/ClientManagement';
 import { DepartmentManagement } from './components/DepartmentManagement';
 import { Settings } from './components/Settings';
 import { Notifications } from './components/Notifications';
@@ -100,6 +101,7 @@ export default function App() {
               <Route path="/contracts/:contractId" element={<ContractDetail />} />
               <Route path="/contracts/:contractId/edit" element={<NewContract />} />
               <Route path="/users" element={<UserList />} />
+              <Route path="/clients" element={<ClientManagement />} />
               <Route path="/users/new" element={<NewUser />} />
               <Route path="/users/:userId/edit" element={<NewUser />} />
               <Route path="/departments" element={<DepartmentManagement />} />

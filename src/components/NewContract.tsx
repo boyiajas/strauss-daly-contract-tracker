@@ -1,7 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   Building2,
+  CircleUserRound,
+  Mail,
+  MapPin,
   FileText, 
   Upload, 
   Bell, 
@@ -10,12 +13,16 @@ import {
   Plus,
   Trash2,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  UserCheck,
+  X
 } from 'lucide-react';
-import { Contract, Department } from '../types';
+import { Client, Contract, Department, User } from '../types';
 import { useToast } from '../App';
 import { createContract, fetchContract, updateContract } from '../lib/contracts';
+import { fetchClients, updateClient } from '../lib/clients';
 import { fetchDepartments } from '../lib/departments';
+import { fetchUsers } from '../lib/users';
 import {
   categoryOptions,
   contractTypeOptions,
@@ -44,10 +51,25 @@ export function NewContract() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [departmentLoadError, setDepartmentLoadError] = useState<string | null>(null);
+  const [clientLoadError, setClientLoadError] = useState<string | null>(null);
+  const [userLoadError, setUserLoadError] = useState<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [authorisers, setAuthorisers] = useState<User[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [removedDocumentPaths, setRemovedDocumentPaths] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [tagsInput, setTagsInput] = useState('');
   const [customDeadline, setCustomDeadline] = useState('');
   const [isAddingDeadline, setIsAddingDeadline] = useState(false);
+  const [isClientDetailsOpen, setIsClientDetailsOpen] = useState(false);
+  const [isSavingClientDetails, setIsSavingClientDetails] = useState(false);
+  const [clientDetailsForm, setClientDetailsForm] = useState<Partial<Client>>({
+    title: 'Mr',
+    name: '',
+    address: '',
+    contacts: [{ name: '', email: '', phone: '' }],
+  });
   const [newContract, setNewContract] = useState<Partial<Contract>>({
     title: '',
     partyName: '',
@@ -66,6 +88,7 @@ export function NewContract() {
     notificationEmails: [''],
     notificationPhones: [''],
   });
+  const selectedClient = clients.find((client) => client.id === newContract.clientId);
 
   const alertDeadlineOptions = Array.from(
     new Set([...(newContract.notificationDays ?? []), ...defaultAlertDays])
@@ -82,6 +105,30 @@ export function NewContract() {
       .catch(() => {
         if (!isActive) return;
         setDepartmentLoadError('Unable to load departments.');
+      });
+
+    fetchClients()
+      .then((data) => {
+        if (!isActive) return;
+        setClients(data);
+        setClientLoadError(null);
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setClientLoadError('Unable to load clients.');
+      });
+
+    fetchUsers()
+      .then((data) => {
+        if (!isActive) return;
+        setAuthorisers(
+          data.filter((user) => user.role === 'Authoriser' && user.status === 'Active')
+        );
+        setUserLoadError(null);
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setUserLoadError('Unable to load authorisers.');
       });
 
     return () => {
@@ -133,13 +180,51 @@ export function NewContract() {
     };
   }, [isEditing, contractId]);
 
+  useEffect(() => {
+    if (newContract.clientId || !newContract.partyName || clients.length === 0) return;
+    const matchedClient = clients.find((client) => client.name === newContract.partyName);
+    if (!matchedClient) return;
+
+    setNewContract((prev) => ({
+      ...prev,
+      clientId: matchedClient.id,
+      clientName: matchedClient.name,
+    }));
+  }, [clients, newContract.clientId, newContract.partyName]);
+
+  useEffect(() => {
+    if (!selectedClient) {
+      setClientDetailsForm({
+        title: 'Mr',
+        name: '',
+        address: '',
+        contacts: [{ name: '', email: '', phone: '' }],
+      });
+      return;
+    }
+
+    setClientDetailsForm({
+      title: selectedClient.title ?? 'Mr',
+      name: selectedClient.name,
+      address: selectedClient.address ?? '',
+      contacts:
+        selectedClient.contacts && selectedClient.contacts.length > 0
+          ? selectedClient.contacts.map((contact) => ({
+              name: contact.name ?? '',
+              email: contact.email ?? '',
+              phone: contact.phone ?? '',
+            }))
+          : [{ name: '', email: '', phone: '' }],
+    });
+  }, [selectedClient]);
+
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
     e?.preventDefault();
     if (isSaving) return;
 
     const missingFields = [
       !newContract.title?.trim() ? 'title' : null,
-      !newContract.partyName?.trim() ? 'counterparty' : null,
+      !newContract.clientId ? 'client' : null,
       !newContract.departmentId ? 'department' : null,
       !newContract.contractType ? 'type' : null,
       !newContract.portfolio ? 'portfolio' : null,
@@ -159,12 +244,17 @@ export function NewContract() {
     setIsSaving(true);
 
     try {
+      const contractPayload: Partial<Contract> = {
+        ...newContract,
+        status: 'Pending Approval',
+      };
+
       if (isEditing && contractId) {
-        await updateContract(contractId, newContract);
-        showToast('Contract updated successfully!', 'success');
+        await updateContract(contractId, contractPayload, selectedFiles, removedDocumentPaths);
+        showToast('Contract updated and submitted for approval.', 'success');
       } else {
-        await createContract(newContract);
-        showToast('Contract created successfully!', 'success');
+        await createContract(contractPayload, selectedFiles, removedDocumentPaths);
+        showToast('Contract created and submitted for approval.', 'success');
       }
       navigate('/contracts');
     } catch (error) {
@@ -175,7 +265,57 @@ export function NewContract() {
   };
 
   const handleFileUpload = () => {
-    showToast('File upload dialog opened');
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+
+    const allowedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'image/png',
+    ];
+
+    for (const file of files) {
+      if (!allowedTypes.includes(file.type)) {
+        showToast('Upload PDF, DOC, DOCX, or PNG files only.', 'error');
+        event.target.value = '';
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('Each document must be 10MB or smaller.', 'error');
+        event.target.value = '';
+        return;
+      }
+    }
+
+    setSelectedFiles((prev) => {
+      const existingKeys = new Set(prev.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
+      const deduped = files.filter((file) => !existingKeys.has(`${file.name}-${file.size}-${file.lastModified}`));
+      return [...prev, ...deduped];
+    });
+    showToast(`${files.length} document${files.length === 1 ? '' : 's'} selected for upload.`, 'success');
+    event.target.value = '';
+  };
+
+  const handleRemoveSelectedFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, fileIndex) => fileIndex !== index));
+    showToast('Selected document removed.', 'success');
+  };
+
+  const handleRemoveExistingDocument = (path: string) => {
+    setRemovedDocumentPaths((prev) => (prev.includes(path) ? prev : [...prev, path]));
+    setNewContract((prev) => ({
+      ...prev,
+      documents: (prev.documents ?? []).filter((document) => document.path !== path),
+      fileName: prev.filePath === path ? undefined : prev.fileName,
+      filePath: prev.filePath === path ? undefined : prev.filePath,
+    }));
+    showToast('Attached document removed from this draft.', 'success');
   };
 
   const handleAddDeadline = () => {
@@ -269,6 +409,79 @@ export function NewContract() {
     });
   };
 
+  const handleClientContactChange = (
+    index: number,
+    field: 'name' | 'email' | 'phone',
+    value: string
+  ) => {
+    setClientDetailsForm((prev) => {
+      const contacts = [...(prev.contacts ?? [{ name: '', email: '', phone: '' }])];
+      const current = contacts[index] ?? { name: '', email: '', phone: '' };
+      contacts[index] = { ...current, [field]: value };
+      return { ...prev, contacts };
+    });
+  };
+
+  const handleAddClientContact = () => {
+    setClientDetailsForm((prev) => ({
+      ...prev,
+      contacts: [...(prev.contacts ?? []), { name: '', email: '', phone: '' }],
+    }));
+  };
+
+  const handleRemoveClientContact = (index: number) => {
+    setClientDetailsForm((prev) => {
+      const contacts = (prev.contacts ?? []).filter((_, itemIndex) => itemIndex !== index);
+      return {
+        ...prev,
+        contacts: contacts.length > 0 ? contacts : [{ name: '', email: '', phone: '' }],
+      };
+    });
+  };
+
+  const handleSaveClientDetails = async () => {
+    if (!selectedClient) return;
+
+    const name = clientDetailsForm.name?.trim() ?? '';
+    if (!name) {
+      showToast('Enter the client name before saving.', 'error');
+      return;
+    }
+
+    const contacts = (clientDetailsForm.contacts ?? [])
+      .map((contact) => ({
+        name: contact.name?.trim() ?? '',
+        email: contact.email?.trim() || undefined,
+        phone: contact.phone?.trim() || undefined,
+      }))
+      .filter((contact) => contact.name || contact.email || contact.phone);
+
+    setIsSavingClientDetails(true);
+    try {
+      const updatedClient = await updateClient(selectedClient.id, {
+        title: clientDetailsForm.title ?? 'Mr',
+        name,
+        address: clientDetailsForm.address?.trim() ?? '',
+        contacts,
+      });
+
+      setClients((prev) =>
+        prev.map((client) => (client.id === updatedClient.id ? updatedClient : client))
+      );
+      setNewContract((prev) => ({
+        ...prev,
+        clientId: updatedClient.id,
+        clientName: updatedClient.name,
+        partyName: updatedClient.name,
+      }));
+      showToast('Client contact details updated successfully.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to update client details.', 'error');
+    } finally {
+      setIsSavingClientDetails(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-8 space-y-8 animate-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -314,6 +527,16 @@ export function NewContract() {
           {departmentLoadError}
         </div>
       )}
+      {clientLoadError && (
+        <div className="bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-xl">
+          {clientLoadError}
+        </div>
+      )}
+      {userLoadError && (
+        <div className="bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-xl">
+          {userLoadError}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 xl:grid-cols-3 gap-8 pb-12">
         <div className="xl:col-span-2 space-y-8">
@@ -341,16 +564,40 @@ export function NewContract() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Client &amp; Supplies</label>
-                <input 
-                  required
-                  type="text" 
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                  placeholder="e.g. Acme Corp"
-                  value={newContract.partyName}
-                  onChange={e => setNewContract({...newContract, partyName: e.target.value})}
-                  disabled={isLoading}
-                />
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Client</label>
+                <div className="space-y-3">
+                  <select
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    value={newContract.clientId ?? ''}
+                    onChange={e => {
+                      const nextClient = clients.find((client) => client.id === e.target.value);
+                      setNewContract({
+                        ...newContract,
+                        clientId: e.target.value,
+                        clientName: nextClient?.name,
+                        partyName: nextClient?.name ?? '',
+                      });
+                    }}
+                    disabled={isLoading || clients.length === 0}
+                  >
+                    <option value="">Select client</option>
+                    {clients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.title ? `${client.title} ` : ''}{client.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setIsClientDetailsOpen(true)}
+                    disabled={!selectedClient}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <CircleUserRound size={16} />
+                    View Client Contact Details
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -429,6 +676,39 @@ export function NewContract() {
               </div>
 
               <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Assign To</label>
+                <div className="space-y-2">
+                  <div className="relative">
+                    <UserCheck className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <select
+                      className="w-full appearance-none pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      value={newContract.assignedToUserId ?? ''}
+                      onChange={(e) => {
+                        const assignee = authorisers.find((user) => user.id === e.target.value);
+                        setNewContract({
+                          ...newContract,
+                          assignedToUserId: e.target.value || undefined,
+                          assignedToUserName: assignee?.name,
+                          assignedToUserEmail: assignee?.email,
+                        });
+                      }}
+                      disabled={isLoading || authorisers.length === 0}
+                    >
+                      <option value="">Select authoriser</option>
+                      {authorisers.map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.name} ({user.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    The assigned authoriser is treated as the responsible owner and is included in contract email notifications.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Status</label>
                 <select 
                   required
@@ -439,8 +719,10 @@ export function NewContract() {
                 >
                   <option value="Draft">Draft</option>
                   <option value="Pending Approval">Pending</option>
-                  <option value="Active">Active</option>
                 </select>
+                <p className="text-[10px] text-slate-400 font-medium mt-1">
+                  New or updated contracts are routed for approval before they become active.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -542,9 +824,62 @@ export function NewContract() {
               <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
                 <Upload size={24} />
               </div>
-              <p className="text-sm font-bold text-slate-900">Click to upload</p>
-              <p className="text-xs text-slate-500 mt-1">PDF, DOCX or PNG (max. 10MB)</p>
-              <input type="file" className="hidden" />
+              <p className="text-sm font-bold text-slate-900">
+                {selectedFiles.length > 0 || newContract.documents?.length ? 'Add or replace contract documents' : 'Click to upload'}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">PDF, DOC, DOCX or PNG (max. 10MB)</p>
+              <p className="text-xs font-semibold text-blue-600 mt-3">
+                {selectedFiles.length > 0
+                  ? `${selectedFiles.length} new document${selectedFiles.length === 1 ? '' : 's'} selected`
+                  : newContract.documents?.length
+                    ? `${newContract.documents.length} existing document${newContract.documents.length === 1 ? '' : 's'} attached`
+                    : 'No document selected yet'}
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.png"
+                multiple
+                className="hidden"
+                onChange={handleFileSelected}
+              />
+            </div>
+            <div className="space-y-3">
+              {(newContract.documents ?? []).map((document) => (
+                <div
+                  key={document.path}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+                >
+                  <span className="min-w-0 truncate text-sm font-semibold text-slate-700">{document.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveExistingDocument(document.path)}
+                    className="inline-flex items-center justify-center rounded-xl border border-red-100 bg-red-50 p-2.5 text-red-500 transition-colors hover:bg-red-100"
+                    aria-label={`Remove ${document.name}`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+              {selectedFiles.map((file, index) => (
+                <div
+                  key={`${file.name}-${file.size}-${file.lastModified}`}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3"
+                >
+                  <span className="min-w-0 truncate text-sm font-semibold text-blue-700">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveSelectedFile(index)}
+                    className="inline-flex items-center justify-center rounded-xl border border-red-100 bg-red-50 p-2.5 text-red-500 transition-colors hover:bg-red-100"
+                    aria-label={`Remove ${file.name}`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+              {selectedFiles.length === 0 && !(newContract.documents?.length) && (
+                <p className="text-xs text-slate-500">No documents selected yet.</p>
+              )}
             </div>
           </section>
 
@@ -750,6 +1085,150 @@ export function NewContract() {
           </div>
         </div>
       </form>
+
+      {isClientDetailsOpen && selectedClient && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/45 p-4">
+          <div className="flex min-h-full items-start justify-center pt-8 sm:pt-12">
+          <div className="w-full max-w-3xl rounded-3xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">Client Contact Details</h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Linked address-book details for this contract counterparty.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsClientDetailsOpen(false)}
+                className="rounded-xl p-2 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Close client details"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-6 px-6 py-6">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Client Name</p>
+                  <input
+                    type="text"
+                    value={clientDetailsForm.name ?? ''}
+                    onChange={(event) => setClientDetailsForm((prev) => ({ ...prev, name: event.target.value }))}
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="Client name"
+                  />
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                  <div className="mb-2 flex items-center gap-2 text-slate-500">
+                    <MapPin size={16} />
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em]">Address</p>
+                  </div>
+                  <textarea
+                    rows={4}
+                    value={clientDetailsForm.address ?? ''}
+                    onChange={(event) => setClientDetailsForm((prev) => ({ ...prev, address: event.target.value }))}
+                    className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="Client address"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <Mail size={16} />
+                  <p className="text-xs font-bold uppercase tracking-[0.18em]">Contact People</p>
+                </div>
+                {(clientDetailsForm.contacts ?? []).length > 0 ? (
+                  <div className="grid gap-3">
+                    {(clientDetailsForm.contacts ?? []).map((contact, index) => (
+                      <div key={`client-contact-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-sm font-bold text-slate-900">Contact {index + 1}</p>
+                          {(clientDetailsForm.contacts ?? []).length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveClientContact(index)}
+                              className="inline-flex items-center justify-center rounded-xl border border-red-100 bg-red-50 p-2 text-red-500 transition-colors hover:bg-red-100"
+                              aria-label={`Remove contact ${index + 1}`}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                        <div className="mt-3 grid gap-3 md:grid-cols-3">
+                          <div className="md:col-span-1">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Contact Person</p>
+                            <input
+                              type="text"
+                              value={contact.name ?? ''}
+                              onChange={(event) => handleClientContactChange(index, 'name', event.target.value)}
+                              className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                              placeholder="Full name"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Email</p>
+                            <input
+                              type="email"
+                              value={contact.email ?? ''}
+                              onChange={(event) => handleClientContactChange(index, 'email', event.target.value)}
+                              className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                              placeholder="Email address"
+                            />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Phone</p>
+                            <input
+                              type="tel"
+                              value={contact.phone ?? ''}
+                              onChange={(event) => handleClientContactChange(index, 'phone', event.target.value)}
+                              className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                              placeholder="Phone number"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-sm font-semibold text-slate-600">
+                    No linked client contacts have been captured yet. Update them from the Clients address book.
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleAddClientContact}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-blue-300 px-4 py-3 text-sm font-bold text-blue-600 transition-all hover:bg-blue-50/50"
+                >
+                  <Plus size={16} />
+                  Add Contact
+                </button>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-slate-100 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsClientDetailsOpen(false)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveClientDetails}
+                  disabled={isSavingClientDetails}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-all hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isSavingClientDetails ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+                  Save Client Details
+                </button>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
