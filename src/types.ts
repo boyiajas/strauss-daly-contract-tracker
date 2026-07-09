@@ -1,4 +1,5 @@
 export type ContractStatus = 'Active' | 'Draft' | 'Expired' | 'Terminated' | 'Pending Approval';
+export type ContractSensitivity = 'Standard' | 'Confidential' | 'Restricted';
 
 export interface Client {
   id: string;
@@ -27,6 +28,7 @@ export interface Contract {
   clientId?: string;
   clientName?: string;
   client?: Client;
+  sensitivityLevel?: ContractSensitivity;
   assignedToUserId?: string;
   assignedToUserName?: string;
   assignedToUserEmail?: string;

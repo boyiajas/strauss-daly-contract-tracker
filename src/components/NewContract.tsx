@@ -30,6 +30,24 @@ import {
   portfolioOptions,
 } from '../lib/contract-ui';
 
+const sensitivityOptions: Array<{
+  value: NonNullable<Contract['sensitivityLevel']>;
+  description: string;
+}> = [
+  {
+    value: 'Standard',
+    description: 'General contract access guidance for Viewer, Manager, Authoriser, and Admin roles.',
+  },
+  {
+    value: 'Confidential',
+    description: 'Intended for Manager, Authoriser, and Admin roles due to higher business sensitivity.',
+  },
+  {
+    value: 'Restricted',
+    description: 'Intended for Authoriser and Admin roles only for the most sensitive agreements.',
+  },
+];
+
 const ensureContactInputs = (values?: string[], fallback?: string) => {
   if (values && values.length > 0) {
     return values.map((value) => value ?? '');
@@ -64,12 +82,7 @@ export function NewContract() {
   const [isAddingDeadline, setIsAddingDeadline] = useState(false);
   const [isClientDetailsOpen, setIsClientDetailsOpen] = useState(false);
   const [isSavingClientDetails, setIsSavingClientDetails] = useState(false);
-  const [clientDetailsForm, setClientDetailsForm] = useState<Partial<Client>>({
-    title: 'Mr',
-    name: '',
-    address: '',
-    contacts: [{ name: '', email: '', phone: '' }],
-  });
+  const [clientContactsForm, setClientContactsForm] = useState<Array<{ name: string; email: string; phone: string }>>([]);
   const [newContract, setNewContract] = useState<Partial<Contract>>({
     title: '',
     partyName: '',
@@ -82,6 +95,7 @@ export function NewContract() {
     value: 0,
     status: 'Draft',
     category: '',
+    sensitivityLevel: 'Standard',
     description: '',
     tags: [],
     notificationDays: [90, 60, 30],
@@ -122,7 +136,11 @@ export function NewContract() {
       .then((data) => {
         if (!isActive) return;
         setAuthorisers(
-          data.filter((user) => user.role === 'Authoriser' && user.status === 'Active')
+          data.filter(
+            (user) =>
+              (user.role === 'Authoriser' || user.role === 'Manager') &&
+              user.status === 'Active'
+          )
         );
         setUserLoadError(null);
       })
@@ -194,28 +212,19 @@ export function NewContract() {
 
   useEffect(() => {
     if (!selectedClient) {
-      setClientDetailsForm({
-        title: 'Mr',
-        name: '',
-        address: '',
-        contacts: [{ name: '', email: '', phone: '' }],
-      });
+      setClientContactsForm([]);
       return;
     }
 
-    setClientDetailsForm({
-      title: selectedClient.title ?? 'Mr',
-      name: selectedClient.name,
-      address: selectedClient.address ?? '',
-      contacts:
-        selectedClient.contacts && selectedClient.contacts.length > 0
-          ? selectedClient.contacts.map((contact) => ({
-              name: contact.name ?? '',
-              email: contact.email ?? '',
-              phone: contact.phone ?? '',
-            }))
-          : [{ name: '', email: '', phone: '' }],
-    });
+    setClientContactsForm(
+      (selectedClient.contacts ?? []).length > 0
+        ? (selectedClient.contacts ?? []).map((contact) => ({
+            name: contact.name ?? '',
+            email: contact.email ?? '',
+            phone: contact.phone ?? '',
+          }))
+        : [{ name: '', email: '', phone: '' }]
+    );
   }, [selectedClient]);
 
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
@@ -409,74 +418,59 @@ export function NewContract() {
     });
   };
 
-  const handleClientContactChange = (
+  const handleClientContactFieldChange = (
     index: number,
     field: 'name' | 'email' | 'phone',
     value: string
   ) => {
-    setClientDetailsForm((prev) => {
-      const contacts = [...(prev.contacts ?? [{ name: '', email: '', phone: '' }])];
-      const current = contacts[index] ?? { name: '', email: '', phone: '' };
-      contacts[index] = { ...current, [field]: value };
-      return { ...prev, contacts };
-    });
+    setClientContactsForm((prev) =>
+      prev.map((contact, contactIndex) =>
+        contactIndex === index ? { ...contact, [field]: value } : contact
+      )
+    );
   };
 
   const handleAddClientContact = () => {
-    setClientDetailsForm((prev) => ({
-      ...prev,
-      contacts: [...(prev.contacts ?? []), { name: '', email: '', phone: '' }],
-    }));
+    setClientContactsForm((prev) => [...prev, { name: '', email: '', phone: '' }]);
   };
 
   const handleRemoveClientContact = (index: number) => {
-    setClientDetailsForm((prev) => {
-      const contacts = (prev.contacts ?? []).filter((_, itemIndex) => itemIndex !== index);
-      return {
-        ...prev,
-        contacts: contacts.length > 0 ? contacts : [{ name: '', email: '', phone: '' }],
-      };
+    setClientContactsForm((prev) => {
+      const next = prev.filter((_, contactIndex) => contactIndex !== index);
+      return next.length > 0 ? next : [{ name: '', email: '', phone: '' }];
     });
   };
 
-  const handleSaveClientDetails = async () => {
+  const handleSaveClientContacts = async () => {
     if (!selectedClient) return;
 
-    const name = clientDetailsForm.name?.trim() ?? '';
-    if (!name) {
-      showToast('Enter the client name before saving.', 'error');
-      return;
-    }
-
-    const contacts = (clientDetailsForm.contacts ?? [])
+    const normalizedContacts = clientContactsForm
       .map((contact) => ({
-        name: contact.name?.trim() ?? '',
-        email: contact.email?.trim() || undefined,
-        phone: contact.phone?.trim() || undefined,
+        name: contact.name.trim(),
+        email: contact.email.trim() || undefined,
+        phone: contact.phone.trim() || undefined,
       }))
       .filter((contact) => contact.name || contact.email || contact.phone);
+
+    const hasInvalidUnnamedContact = normalizedContacts.some(
+      (contact) => (!contact.name || contact.name.length === 0) && (contact.email || contact.phone)
+    );
+
+    if (hasInvalidUnnamedContact) {
+      showToast('Each contact with an email or phone must also include a contact person name.', 'error');
+      return;
+    }
 
     setIsSavingClientDetails(true);
     try {
       const updatedClient = await updateClient(selectedClient.id, {
-        title: clientDetailsForm.title ?? 'Mr',
-        name,
-        address: clientDetailsForm.address?.trim() ?? '',
-        contacts,
+        ...selectedClient,
+        contacts: normalizedContacts,
       });
-
-      setClients((prev) =>
-        prev.map((client) => (client.id === updatedClient.id ? updatedClient : client))
-      );
-      setNewContract((prev) => ({
-        ...prev,
-        clientId: updatedClient.id,
-        clientName: updatedClient.name,
-        partyName: updatedClient.name,
-      }));
+      setClients((prev) => prev.map((client) => (client.id === updatedClient.id ? updatedClient : client)));
       showToast('Client contact details updated successfully.', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Unable to update client details.', 'error');
+      showToast(error instanceof Error ? error.message : 'Unable to update client contact details.', 'error');
     } finally {
       setIsSavingClientDetails(false);
     }
@@ -595,8 +589,11 @@ export function NewContract() {
                     className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-all hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <CircleUserRound size={16} />
-                    View Client Contact Details
+                    View Linked Client Contacts
                   </button>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    Contracts link to existing clients only. Contact people come from the linked client automatically.
+                  </p>
                 </div>
               </div>
 
@@ -704,6 +701,35 @@ export function NewContract() {
                   </div>
                   <p className="text-[10px] text-slate-400 font-medium">
                     The assigned authoriser is treated as the responsible owner and is included in contract email notifications.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Sensitivity Level</label>
+                <div className="space-y-2">
+                  <select
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                    value={newContract.sensitivityLevel ?? 'Standard'}
+                    onChange={(e) =>
+                      setNewContract({
+                        ...newContract,
+                        sensitivityLevel: e.target.value as NonNullable<Contract['sensitivityLevel']>,
+                      })
+                    }
+                    disabled={isLoading}
+                  >
+                    {sensitivityOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.value}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    {
+                      sensitivityOptions.find((option) => option.value === (newContract.sensitivityLevel ?? 'Standard'))
+                        ?.description
+                    }
                   </p>
                 </div>
               </div>
@@ -1094,7 +1120,7 @@ export function NewContract() {
               <div>
                 <h3 className="text-xl font-bold text-slate-900">Client Contact Details</h3>
                 <p className="mt-1 text-sm text-slate-500">
-                  Linked address-book details for this contract counterparty.
+                  This contract inherits these contact people from the linked client record. You can add or remove them here.
                 </p>
               </div>
               <button
@@ -1111,26 +1137,18 @@ export function NewContract() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                   <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Client Name</p>
-                  <input
-                    type="text"
-                    value={clientDetailsForm.name ?? ''}
-                    onChange={(event) => setClientDetailsForm((prev) => ({ ...prev, name: event.target.value }))}
-                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="Client name"
-                  />
+                  <p className="mt-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900">
+                    {selectedClient.name}
+                  </p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                   <div className="mb-2 flex items-center gap-2 text-slate-500">
                     <MapPin size={16} />
                     <p className="text-[11px] font-bold uppercase tracking-[0.18em]">Address</p>
                   </div>
-                  <textarea
-                    rows={4}
-                    value={clientDetailsForm.address ?? ''}
-                    onChange={(event) => setClientDetailsForm((prev) => ({ ...prev, address: event.target.value }))}
-                    className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                    placeholder="Client address"
-                  />
+                  <p className="whitespace-pre-line rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900">
+                    {selectedClient.address?.trim() || 'No client address captured yet.'}
+                  </p>
                 </div>
               </div>
 
@@ -1139,13 +1157,13 @@ export function NewContract() {
                   <Mail size={16} />
                   <p className="text-xs font-bold uppercase tracking-[0.18em]">Contact People</p>
                 </div>
-                {(clientDetailsForm.contacts ?? []).length > 0 ? (
+                {clientContactsForm.length > 0 ? (
                   <div className="grid gap-3">
-                    {(clientDetailsForm.contacts ?? []).map((contact, index) => (
+                    {clientContactsForm.map((contact, index) => (
                       <div key={`client-contact-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4">
                         <div className="flex items-start justify-between gap-3">
-                          <p className="text-sm font-bold text-slate-900">Contact {index + 1}</p>
-                          {(clientDetailsForm.contacts ?? []).length > 1 && (
+                          <p className="text-sm font-bold text-slate-900">{contact.name || `Contact ${index + 1}`}</p>
+                          {clientContactsForm.length > 1 && (
                             <button
                               type="button"
                               onClick={() => handleRemoveClientContact(index)}
@@ -1161,30 +1179,30 @@ export function NewContract() {
                             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Contact Person</p>
                             <input
                               type="text"
-                              value={contact.name ?? ''}
-                              onChange={(event) => handleClientContactChange(index, 'name', event.target.value)}
+                              value={contact.name}
+                              onChange={(event) => handleClientContactFieldChange(index, 'name', event.target.value)}
                               className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                              placeholder="Full name"
+                              placeholder="Contact person"
                             />
                           </div>
                           <div>
                             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Email</p>
                             <input
                               type="email"
-                              value={contact.email ?? ''}
-                              onChange={(event) => handleClientContactChange(index, 'email', event.target.value)}
+                              value={contact.email}
+                              onChange={(event) => handleClientContactFieldChange(index, 'email', event.target.value)}
                               className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                              placeholder="Email address"
+                              placeholder="contact@example.com"
                             />
                           </div>
                           <div>
                             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">Phone</p>
                             <input
-                              type="tel"
-                              value={contact.phone ?? ''}
-                              onChange={(event) => handleClientContactChange(index, 'phone', event.target.value)}
+                              type="text"
+                              value={contact.phone}
+                              onChange={(event) => handleClientContactFieldChange(index, 'phone', event.target.value)}
                               className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                              placeholder="Phone number"
+                              placeholder="+27 82 000 0000"
                             />
                           </div>
                         </div>
@@ -1193,7 +1211,7 @@ export function NewContract() {
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-sm font-semibold text-slate-600">
-                    No linked client contacts have been captured yet. Update them from the Clients address book.
+                    No linked client contacts have been captured yet.
                   </div>
                 )}
                 <button
@@ -1216,12 +1234,12 @@ export function NewContract() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleSaveClientDetails}
+                  onClick={() => void handleSaveClientContacts()}
                   disabled={isSavingClientDetails}
                   className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-all hover:bg-blue-700 disabled:opacity-50"
                 >
                   {isSavingClientDetails ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
-                  Save Client Details
+                  Save Client Contacts
                 </button>
               </div>
             </div>

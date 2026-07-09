@@ -284,6 +284,7 @@ export function ContractList() {
             'Contract ID': contract.id,
             'Contract Title': contract.title,
             Counterparty: contract.partyName,
+            'Sensitivity Level': contract.sensitivityLevel ?? 'Standard',
             Department: contract.departmentName ?? '',
             Type: contract.contractType ?? '',
             Category: contract.category,
@@ -311,6 +312,7 @@ export function ContractList() {
           { wch: 12 },
           { wch: 36 },
           { wch: 32 },
+          { wch: 18 },
           { wch: 22 },
           { wch: 24 },
           { wch: 18 },
@@ -336,7 +338,7 @@ export function ContractList() {
         });
         worksheet['!cols'] = columns;
 
-        const valueColumnIndex = 12;
+        const valueColumnIndex = 13;
         const range = XLSX.utils.decode_range(worksheet['!ref'] ?? 'A1');
         for (let row = range.s.r + 1; row <= range.e.r; row += 1) {
           const cellAddress = XLSX.utils.encode_cell({ c: valueColumnIndex, r: row });
@@ -734,7 +736,7 @@ export function ContractList() {
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-200">
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contract Details</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Counterparty</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Client</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Value</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
@@ -807,7 +809,7 @@ export function ContractList() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         <Building2 size={14} className="text-slate-400" />
-                        <span className="text-sm text-slate-600 font-medium">{contract.partyName}</span>
+                        <span className="text-sm text-slate-600 font-medium">{contract.clientName || contract.partyName}</span>
                       </div>
                     </td>
                     <td className="px-6 py-4">

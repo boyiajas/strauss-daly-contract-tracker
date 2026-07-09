@@ -252,7 +252,7 @@ export function ContractDetail() {
             <div className="space-y-5">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-blue-100">
                 <Building2 size={14} />
-                {contract.partyName}
+                {contract.clientName || contract.partyName}
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -313,9 +313,10 @@ export function ContractDetail() {
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <DetailItem icon={Building2} label="Counterparty" value={contract.partyName} />
+                <DetailItem icon={Building2} label="Client" value={contract.clientName || contract.partyName} />
                 <DetailItem icon={FolderKanban} label="Department" value={contract.departmentName || 'Not assigned'} />
                 <DetailItem icon={Tag} label="Category" value={contract.category} />
+                <DetailItem icon={ShieldCheck} label="Sensitivity" value={contract.sensitivityLevel || 'Standard'} />
                 <DetailItem icon={ShieldCheck} label="Type" value={contract.contractType || 'Not specified'} />
                 <DetailItem icon={UserCheck} label="Assigned To" value={contract.assignedToUserName || 'No authoriser assigned'} />
                 <DetailItem icon={Mail} label="Assigned Email" value={contract.assignedToUserEmail || 'No assigned email'} />

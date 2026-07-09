@@ -37,7 +37,7 @@ export function ClientManagement() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [modalState, setModalState] = useState<ClientModalState | null>(null);
-  const [clientForm, setClientForm] = useState<Partial<Client>>({ title: 'Mr', name: '', address: '', contacts: [{ name: '', email: '', phone: '' }] });
+  const [clientForm, setClientForm] = useState<Partial<Client>>({ name: '', address: '' });
   const [isSavingClient, setIsSavingClient] = useState(false);
   const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -99,23 +99,20 @@ export function ClientManagement() {
         : null;
 
   const openCreateModal = () => {
-    setClientForm({ title: 'Mr', name: '', address: '', contacts: [{ name: '', email: '', phone: '' }] });
+    setClientForm({ name: '', address: '' });
     setModalState({ mode: 'create' });
   };
 
   const openEditModal = (client: Client) => {
     setClientForm({
-      title: client.title ?? 'Mr',
       name: client.name,
       address: client.address ?? '',
-      contacts: client.contacts && client.contacts.length > 0 ? client.contacts : [{ name: '', email: '', phone: '' }],
     });
     setModalState({ mode: 'edit', client });
   };
 
   const handleSaveClient = async () => {
     const name = clientForm.name?.trim() ?? '';
-    const contacts = (clientForm.contacts ?? []).filter((contact) => contact.name?.trim() || contact.email?.trim() || contact.phone?.trim());
     if (!name) {
       showToast('Enter a client name before saving.', 'error');
       return;
@@ -124,14 +121,18 @@ export function ClientManagement() {
     setIsSavingClient(true);
     try {
       if (modalState?.mode === 'edit' && modalState.client) {
-        await updateClient(modalState.client.id, { ...clientForm, name, contacts });
+        await updateClient(modalState.client.id, {
+          ...modalState.client,
+          name,
+          address: clientForm.address ?? '',
+        });
         showToast('Client updated successfully.', 'success');
       } else {
-        await createClient({ ...clientForm, name, contacts });
+        await createClient({ name, address: clientForm.address ?? '', contacts: [] });
         showToast('Client created successfully.', 'success');
       }
       setModalState(null);
-      setClientForm({ title: 'Mr', name: '', address: '', contacts: [{ name: '', email: '', phone: '' }] });
+      setClientForm({ name: '', address: '' });
       await loadData();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Unable to save client.', 'error');
@@ -246,7 +247,10 @@ export function ClientManagement() {
                           <div className="absolute right-6 top-14 z-50 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 animate-in fade-in zoom-in-95 duration-200">
                             <button
                               onClick={() => {
-                                openEditModal({ id: client.id, name: client.name });
+                                const fullClient = clients.find((item) => item.id === client.id);
+                                if (fullClient) {
+                                  openEditModal(fullClient);
+                                }
                                 setActiveMenu(null);
                               }}
                               className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left"
@@ -290,31 +294,15 @@ export function ClientManagement() {
                   </button>
                 </div>
                 <div className="space-y-4 px-6 py-5">
-                  <div className="grid grid-cols-1 md:grid-cols-[120px_minmax(0,1fr)] gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Title</label>
-                      <select
-                        value={clientForm.title ?? 'Mr'}
-                        onChange={(event) => setClientForm((prev) => ({ ...prev, title: event.target.value }))}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                      >
-                        <option value="Mr">Mr</option>
-                        <option value="Mrs">Mrs</option>
-                        <option value="Ms">Ms</option>
-                        <option value="Dr">Dr</option>
-                        <option value="Prof">Prof</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Client Name</label>
-                      <input
-                        type="text"
-                        value={clientForm.name ?? ''}
-                        onChange={(event) => setClientForm((prev) => ({ ...prev, name: event.target.value }))}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                        placeholder="e.g. Acme Corp"
-                      />
-                    </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Client Name</label>
+                    <input
+                      type="text"
+                      value={clientForm.name ?? ''}
+                      onChange={(event) => setClientForm((prev) => ({ ...prev, name: event.target.value }))}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      placeholder="e.g. Acme Corp"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Address</label>
@@ -326,77 +314,8 @@ export function ClientManagement() {
                       placeholder="Street, suburb, city, postal code"
                     />
                   </div>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Contact Details</label>
-                      <button
-                        type="button"
-                        onClick={() => setClientForm((prev) => ({
-                          ...prev,
-                          contacts: [...(prev.contacts ?? []), { name: '', email: '', phone: '' }],
-                        }))}
-                        className="text-xs font-bold text-blue-600 hover:text-blue-700"
-                      >
-                        + Add Contact
-                      </button>
-                    </div>
-                    {(clientForm.contacts ?? []).map((contact, index) => (
-                      <div key={`contact-${index}`} className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
-                        <div className="flex justify-between items-center">
-                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Contact {index + 1}</p>
-                          {(clientForm.contacts ?? []).length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => setClientForm((prev) => ({
-                                ...prev,
-                                contacts: (prev.contacts ?? []).filter((_, itemIndex) => itemIndex !== index),
-                              }))}
-                              className="text-xs font-bold text-red-600 hover:text-red-700"
-                            >
-                              Remove
-                            </button>
-                          )}
-                        </div>
-                        <input
-                          type="text"
-                          value={contact.name ?? ''}
-                          onChange={(event) => setClientForm((prev) => ({
-                            ...prev,
-                            contacts: (prev.contacts ?? []).map((item, itemIndex) =>
-                              itemIndex === index ? { ...item, name: event.target.value } : item
-                            ),
-                          }))}
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                          placeholder="Contact person name"
-                        />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <input
-                            type="email"
-                            value={contact.email ?? ''}
-                            onChange={(event) => setClientForm((prev) => ({
-                              ...prev,
-                              contacts: (prev.contacts ?? []).map((item, itemIndex) =>
-                                itemIndex === index ? { ...item, email: event.target.value } : item
-                              ),
-                            }))}
-                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                            placeholder="contact@example.com"
-                          />
-                          <input
-                            type="text"
-                            value={contact.phone ?? ''}
-                            onChange={(event) => setClientForm((prev) => ({
-                              ...prev,
-                              contacts: (prev.contacts ?? []).map((item, itemIndex) =>
-                                itemIndex === index ? { ...item, phone: event.target.value } : item
-                              ),
-                            }))}
-                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                            placeholder="+27 82 000 0000"
-                          />
-                        </div>
-                      </div>
-                    ))}
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-blue-700">
+                    Contact people are managed in the `Address Book` module. When this client is linked to a contract, its address-book contacts are linked automatically.
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">

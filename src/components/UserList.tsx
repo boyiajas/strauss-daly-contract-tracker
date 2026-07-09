@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  UserPlus, 
-  Shield, 
-  ShieldAlert, 
+import {
+  UserPlus,
+  Shield,
+  ShieldAlert,
   ShieldCheck,
   MoreHorizontal,
   Mail,
@@ -11,7 +11,8 @@ import {
   Edit2,
   Trash2,
   UserCheck,
-  UserMinus
+  UserMinus,
+  Building2,
 } from 'lucide-react';
 import { User } from '../types';
 import { deleteUser, fetchUsers, updateUser } from '../lib/users';
@@ -68,11 +69,6 @@ export function UserList() {
     u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const handleAction = (action: string, id: string) => {
-    showToast(`${action} action triggered for user ${id}`);
-    setActiveMenu(null);
-  };
 
   const handleToggleStatus = async (user: User) => {
     const nextStatus = user.status === 'Active' ? 'Inactive' : 'Active';
@@ -136,79 +132,110 @@ export function UserList() {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {emptyMessage ? (
-          <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm text-center text-sm text-slate-500 col-span-full">
-            {emptyMessage}
-          </div>
-        ) : (
-          filteredUsers.map((user) => {
-            const Icon = roleIcons[user.role];
-            return (
-              <div key={user.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 font-bold text-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                    {user.name.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <div className="relative">
-                    <button 
-                      onClick={() => setActiveMenu(activeMenu === user.id ? null : user.id)}
-                      className="p-1.5 text-slate-400 hover:bg-slate-50 rounded-lg"
-                    >
-                      <MoreHorizontal size={18} />
-                    </button>
-                    
-                    {activeMenu === user.id && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)} />
-                        <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
-                          <button onClick={() => navigate(`/users/${user.id}/edit`)} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                            <Edit2 size={16} /> Edit Profile
-                          </button>
-                          <button onClick={() => handleToggleStatus(user)} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left">
-                            {user.status === 'Active' ? <UserMinus size={16} /> : <UserCheck size={16} />}
-                            {user.status === 'Active' ? 'Deactivate' : 'Activate'}
-                          </button>
-                          <div className="h-px bg-slate-100 my-1" />
-                          <button onClick={() => handleDelete(user)} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors text-left">
-                            <Trash2 size={16} /> Delete User
-                          </button>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-200">
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">User</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Department</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Role</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {emptyMessage ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-10 text-center text-sm text-slate-500">
+                    {emptyMessage}
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((user) => {
+                  const Icon = roleIcons[user.role];
+                  return (
+                    <tr key={user.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 font-bold text-sm">
+                            {user.name.split(' ').map((n) => n[0]).join('')}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{user.name}</p>
+                            <div className="flex items-center gap-2 text-slate-500 text-sm">
+                              <Mail size={14} />
+                              <span>{user.email}</span>
+                            </div>
+                          </div>
                         </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="space-y-1">
-                  <h3 className="font-bold text-slate-900">{user.name}</h3>
-                  <div className="flex items-center gap-2 text-slate-500 text-sm">
-                    <Mail size={14} />
-                    <span>{user.email}</span>
-                  </div>
-                </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <Building2 size={14} className="text-slate-400" />
+                          <span>{user.department || 'Not assigned'}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div
+                          className={cn(
+                            "inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                            roleColors[user.role]
+                          )}
+                        >
+                          <Icon size={12} />
+                          {user.role}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={cn(
+                              "w-2 h-2 rounded-full",
+                              user.status === 'Active' ? "bg-emerald-500" : "bg-slate-300"
+                            )}
+                          />
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            {user.status}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 relative">
+                        <div className="flex items-center justify-end">
+                          <button
+                            onClick={() => setActiveMenu(activeMenu === user.id ? null : user.id)}
+                            className="p-2 text-slate-400 hover:bg-slate-50 rounded-lg"
+                          >
+                            <MoreHorizontal size={18} />
+                          </button>
 
-                <div className="mt-6 pt-6 border-t border-slate-100 flex items-center justify-between">
-                  <div className={cn(
-                    "flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                    roleColors[user.role]
-                  )}>
-                    <Icon size={12} />
-                    {user.role}
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className={cn(
-                      "w-2 h-2 rounded-full",
-                      user.status === 'Active' ? "bg-emerald-500" : "bg-slate-300"
-                    )}></div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      {user.status}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
+                          {activeMenu === user.id && (
+                            <>
+                              <div className="fixed inset-0 z-40" onClick={() => setActiveMenu(null)} />
+                              <div className="absolute right-6 top-14 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                                <button onClick={() => navigate(`/users/${user.id}/edit`)} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left">
+                                  <Edit2 size={16} /> Edit Profile
+                                </button>
+                                <button onClick={() => handleToggleStatus(user)} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left">
+                                  {user.status === 'Active' ? <UserMinus size={16} /> : <UserCheck size={16} />}
+                                  {user.status === 'Active' ? 'Deactivate' : 'Activate'}
+                                </button>
+                                <div className="h-px bg-slate-100 my-1" />
+                                <button onClick={() => handleDelete(user)} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors text-left">
+                                  <Trash2 size={16} /> Delete User
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

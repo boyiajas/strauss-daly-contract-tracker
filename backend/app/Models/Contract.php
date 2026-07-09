@@ -10,6 +10,7 @@ class Contract extends Model
         'title',
         'party_name',
         'client_id',
+        'sensitivity_level',
         'assigned_user_id',
         'department_id',
         'contract_type',

@@ -189,7 +189,7 @@ export function Dashboard() {
         return {
           id: contract.id,
           title: contract.title,
-          party: contract.partyName,
+          party: contract.clientName || contract.partyName,
           date: contract.endDate,
           days: differenceInDays(endDate, now),
         };

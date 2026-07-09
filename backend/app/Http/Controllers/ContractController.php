@@ -41,6 +41,7 @@ class ContractController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'client_id' => ['nullable', 'integer', 'exists:clients,id'],
+            'sensitivity_level' => ['nullable', 'string', 'in:Standard,Confidential,Restricted'],
             'assigned_user_id' => ['nullable', 'integer', 'exists:users,id'],
             'party_name' => ['required', 'string', 'max:255'],
             'department_id' => ['required', 'integer', 'exists:departments,id'],
@@ -112,6 +113,7 @@ class ContractController extends Controller
         $data = $request->validate([
             'title' => ['sometimes', 'string', 'max:255'],
             'client_id' => ['sometimes', 'nullable', 'integer', 'exists:clients,id'],
+            'sensitivity_level' => ['sometimes', 'nullable', 'string', 'in:Standard,Confidential,Restricted'],
             'assigned_user_id' => ['sometimes', 'nullable', 'integer', 'exists:users,id'],
             'party_name' => ['sometimes', 'string', 'max:255'],
             'department_id' => ['sometimes', 'required', 'integer', 'exists:departments,id'],

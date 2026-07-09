@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, Clock, LogOut, Menu, Settings } from 'lucide-react';
+import { Bell, ChevronDown, Clock, LogOut, Menu, Settings, UserCircle2 } from 'lucide-react';
 import { fetchNotificationLogs } from '../lib/notifications';
 import { NotificationLog } from '../types';
 
@@ -196,6 +196,16 @@ export function Header({ onMenuClick, onLogout, user }: HeaderProps) {
                 className="fixed z-50 w-56 bg-white rounded-xl shadow-xl border border-slate-100 py-2"
                 style={{ top: userPosition.top, left: userPosition.left }}
               >
+                <button
+                  onClick={() => {
+                    closeMenus();
+                    navigate('/profile');
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors text-left"
+                >
+                  <UserCircle2 size={16} /> Profile Info
+                </button>
+                <div className="h-px bg-slate-100 my-1" />
                 <button
                   onClick={() => {
                     closeMenus();

@@ -6,6 +6,7 @@ import { Dashboard } from './components/Dashboard';
 import { ContractList } from './components/ContractList';
 import { UserList } from './components/UserList';
 import { ClientManagement } from './components/ClientManagement';
+import { AddressBook } from './components/AddressBook';
 import { DepartmentManagement } from './components/DepartmentManagement';
 import { Settings } from './components/Settings';
 import { Notifications } from './components/Notifications';
@@ -13,6 +14,7 @@ import { AuditLog } from './components/AuditLog';
 import { NewContract } from './components/NewContract';
 import { ContractDetail } from './components/ContractDetail';
 import { NewUser } from './components/NewUser';
+import { ProfileInfo } from './components/ProfileInfo';
 import { Login } from './components/Login';
 import { Register } from './components/Register';
 import { CheckCircle2, AlertCircle, X } from 'lucide-react';
@@ -62,6 +64,11 @@ export default function App() {
     showToast('Logged out successfully');
   };
 
+  const handleUserUpdate = (updatedUser: any) => {
+    setUser(updatedUser);
+    localStorage.setItem('strauss_daly_user', JSON.stringify(updatedUser));
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -100,8 +107,10 @@ export default function App() {
               <Route path="/contracts/new" element={<NewContract />} />
               <Route path="/contracts/:contractId" element={<ContractDetail />} />
               <Route path="/contracts/:contractId/edit" element={<NewContract />} />
+              <Route path="/profile" element={<ProfileInfo user={user} onUserUpdate={handleUserUpdate} />} />
               <Route path="/users" element={<UserList />} />
               <Route path="/clients" element={<ClientManagement />} />
+              <Route path="/address-book" element={<AddressBook />} />
               <Route path="/users/new" element={<NewUser />} />
               <Route path="/users/:userId/edit" element={<NewUser />} />
               <Route path="/departments" element={<DepartmentManagement />} />

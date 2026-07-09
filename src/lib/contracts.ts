@@ -16,6 +16,7 @@ type ContractApi = {
       phone?: string | null;
     }> | null;
   } | null;
+  sensitivity_level?: string | null;
   assigned_user_id?: number | null;
   assigned_user?: {
     id: number;
@@ -121,6 +122,7 @@ export const mapContractFromApi = (contract: ContractApi): Contract => {
     clientId: contract.client_id ? String(contract.client_id) : undefined,
     clientName: contract.client?.name ?? contract.party_name,
     client,
+    sensitivityLevel: (contract.sensitivity_level as Contract['sensitivityLevel']) ?? undefined,
     assignedToUserId: contract.assigned_user_id ? String(contract.assigned_user_id) : undefined,
     assignedToUserName: contract.assigned_user?.name ?? undefined,
     assignedToUserEmail: contract.assigned_user?.email ?? undefined,
@@ -160,8 +162,9 @@ export const mapContractToApi = (contract: Partial<Contract>) => {
 
   return {
     title: contract.title ?? '',
-    party_name: contract.partyName ?? '',
+    party_name: contract.clientName ?? contract.partyName ?? '',
     client_id: contract.clientId ? Number(contract.clientId) : null,
+    sensitivity_level: contract.sensitivityLevel ?? 'Standard',
     assigned_user_id: contract.assignedToUserId ? Number(contract.assignedToUserId) : null,
     department_id: contract.departmentId ? Number(contract.departmentId) : null,
     contract_type: contract.contractType ?? '',
@@ -322,6 +325,7 @@ export const parseContractsWorkbook = async (
     const category = parseStringCell(row.Category);
     const portfolio = parseStringCell(row.Portfolio);
     const status = parseStringCell(row.Status) || 'Draft';
+    const sensitivityLevel = parseStringCell(row['Sensitivity Level']) || 'Standard';
     const startDate = parseStringCell(row['Start Date']);
     const reviewDate = parseStringCell(row['Review Date']);
     const endDate = parseStringCell(row['End Date']);
@@ -386,6 +390,7 @@ export const parseContractsWorkbook = async (
         category,
         portfolio,
         status: status as Contract['status'],
+        sensitivityLevel: sensitivityLevel as Contract['sensitivityLevel'],
         startDate,
         reviewDate: reviewDate || undefined,
         endDate: endDate || undefined,
